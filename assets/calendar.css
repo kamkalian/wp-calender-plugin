@@ -10,6 +10,19 @@
 	font-size: 15px;
 	line-height: 1.4;
 }
+/* Volle Fensterbreite, auch innerhalb schmaler Theme-Inhaltsspalten */
+html body .gcalmk.gcalmk-full {
+	/* Randausgleich statt left: unabhängig davon, wie das Theme den Inhalt zentriert. */
+	box-sizing: border-box;
+	width: 100vw !important;
+	max-width: 100vw !important;
+	margin-left: calc(50% - 50vw) !important;
+	margin-right: calc(50% - 50vw) !important;
+	padding: 0 24px;
+}
+body:has(.gcalmk-full) { overflow-x: clip; }
+@media (max-width: 640px) { html body .gcalmk.gcalmk-full { padding: 0 12px; } }
+
 .gcalmk *, .gcalmk *::before, .gcalmk *::after { box-sizing: border-box; }
 .gcalmk button { font: inherit; cursor: pointer; }
 

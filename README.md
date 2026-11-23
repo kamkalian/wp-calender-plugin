@@ -17,6 +17,7 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `tag="Jugend"` | Tag beim Laden vorgewählt |
 | `suche="nein"` | Suche ausblenden |
 | `tags="nein"` | Tag-Leiste ausblenden |
+| `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
 
 ## Tags
 Im Google-Termin `#Tag` in Titel oder Beschreibung schreiben, z. B. `Training #Jugend`. Alle gefundenen Tags erscheinen als Filter-Schaltflächen; im Termin selbst werden sie ausgeblendet.

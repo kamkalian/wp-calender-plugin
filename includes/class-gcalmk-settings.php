@@ -208,7 +208,7 @@ class GCalMK_Settings {
 
 			<h2>Einbinden</h2>
 			<p>Shortcode auf einer Seite einfügen: <code>[gcal_kalender]</code></p>
-			<p>Optional: <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste.</p>
+			<p>Optional (Standard: volle Seitenbreite, mit <code>breite="inhalt"</code> nur Inhaltsbreite): <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste.</p>
 
 			<h2>Tags vergeben</h2>
 			<p>Schreibe im Google-Kalender ein <code>#Tag</code> in den Titel oder die Beschreibung des Termins, z. B. <code>Training #Jugend</code>. Der Tag erscheint als Filter-Schaltfläche über dem Kalender und wird in der Anzeige ausgeblendet.</p>
