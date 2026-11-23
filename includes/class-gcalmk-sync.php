@@ -239,6 +239,7 @@ class GCalMK_Sync {
 		);
 
 		// Tags werden nicht hier, sondern erst bei der Auslieferung zugeordnet (siehe GCalMK_Tags), damit Änderungen sofort wirken.
+		GCalMK_Tags::ensure_colors( $events );
 		update_option(
 			'gcalmk_cache',
 			array(

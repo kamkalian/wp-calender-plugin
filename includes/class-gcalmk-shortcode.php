@@ -20,6 +20,7 @@ class GCalMK_Shortcode {
 				'suche' => 'ja',
 				'tags'  => 'ja',
 				'breite' => 'voll', // "voll" = ganze Fensterbreite, "inhalt" = Breite des Theme-Inhaltsbereichs.
+				'oben'   => '',     // Abstand des fixierten Kopfbereichs zum Fensterrand in px (bei festem Theme-Header).
 			),
 			$atts,
 			'gcal_kalender'
@@ -29,12 +30,13 @@ class GCalMK_Shortcode {
 		wp_enqueue_script( 'gcalmk', GCALMK_URL . 'assets/calendar.js', array(), GCALMK_VERSION, true );
 
 		return sprintf(
-			'<div class="gcalmk%s" data-endpoint="%s" data-tag="%s" data-search="%s" data-tags="%s"><noscript>Der Kalender benötigt JavaScript.</noscript></div>',
+			'<div class="gcalmk%s" data-endpoint="%s" data-tag="%s" data-search="%s" data-tags="%s"%s><noscript>Der Kalender benötigt JavaScript.</noscript></div>',
 			'inhalt' === strtolower( $atts['breite'] ) ? '' : ' gcalmk-full',
 			esc_url( rest_url( 'gcalmk/v1/events' ) ),
 			esc_attr( $atts['tag'] ),
 			self::yes( $atts['suche'] ) ? '1' : '0',
-			self::yes( $atts['tags'] ) ? '1' : '0'
+			self::yes( $atts['tags'] ) ? '1' : '0',
+			is_numeric( $atts['oben'] ) ? ' data-top="' . (int) $atts['oben'] . '"' : ''
 		);
 	}
 }

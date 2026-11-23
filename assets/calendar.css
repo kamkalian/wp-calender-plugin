@@ -35,7 +35,7 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 .gcalmk button { font: inherit; cursor: pointer; }
 
 /* Tag-Filter */
-.gcalmk-tags { margin: 0 0 14px; }
+.gcalmk-tags { margin: 0 0 10px; }
 .gcalmk-tags[hidden], .gcalmk-tagpanel[hidden] { display: none; }
 .gcalmk-taghead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .gcalmk-tagtoggle {
@@ -46,7 +46,10 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 .gcalmk-tagpanel {
 	display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 12px;
 	border: 1px solid var(--gk-border); border-radius: 4px; background: #fff;
+	max-height: 40vh; overflow-y: auto; /* bleibt im fixierten Kopf bedienbar */
 }
+.gcalmk-chip .gcalmk-rec { margin-left: 0; }
+.gcalmk-x { margin-left: 2px; font-weight: 700; }
 /* Tag: neutrale Schaltfläche, die Tag-Farbe (= Farbe der Linie am Termin) nur als Punkt */
 .gcalmk-chip {
 	display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px 5px 10px;
@@ -77,8 +80,20 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 /* Raster */
 .gcalmk-grid {
 	display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+	border-left: 1px solid var(--gk-border);
+}
+/* Fixierter Kopfbereich: scrollt zuerst bis zum oberen Seitenrand, bleibt dann stehen */
+.gcalmk-sticky {
+	position: sticky; top: var(--gk-top, 0px); z-index: 20;
+	padding-top: 6px; background: var(--gk-bg);
+}
+body.admin-bar .gcalmk { --gk-top: 32px; }
+@media (max-width: 782px) { body.admin-bar .gcalmk { --gk-top: 46px; } }
+.gcalmk-weekdays {
+	display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
 	border-top: 1px solid var(--gk-border); border-left: 1px solid var(--gk-border);
 }
+.gcalmk-weekdays[hidden] { display: none; }
 .gcalmk-wd {
 	padding: 8px 6px; text-align: center; font-weight: 700;
 	border-right: 1px solid var(--gk-border); border-bottom: 1px solid var(--gk-border);
@@ -180,7 +195,7 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 /* Handy: Agenda-Liste statt Raster */
 @media (max-width: 640px) {
 	.gcalmk-grid { display: block; border: 0; }
-	.gcalmk-wd, .gcalmk-out, .gcalmk-empty { display: none; }
+	.gcalmk-weekdays, .gcalmk-out, .gcalmk-empty { display: none; }
 	.gcalmk-cell { min-height: 0; margin-bottom: 10px; border: 1px solid var(--gk-border); padding-bottom: 6px; background: var(--gk-bg); }
 	.gcalmk-dshort { display: none; }
 	.gcalmk-dlong { display: inline; }

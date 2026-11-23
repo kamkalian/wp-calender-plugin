@@ -4,33 +4,100 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tags werden manuell gepflegt:
- *  - Tag-Liste (Name + Farbe), Option gcalmk_tag_defs:  id => array( id, name, color )
- *  - Zuordnung Termintitel => Tag,  Option gcalmk_tag_map:  md5(Titel) => id
- * Termine mit gleichem Titel (z. B. alle Wiederholungen einer Serie) teilen sich einen Eintrag.
+ * Tags: Jeder Termin (eindeutig nach Titel) hat automatisch einen Tag aus seinem Titel.
+ * In den Einstellungen lässt sich der Tag je Eintrag frei umschreiben oder löschen, die Farbe kommt aus einer festen Auswahl.
+ *
+ * Option gcalmk_tagdata:
+ *   titles => array( md5-Schlüssel des Titels => Tag-Text, '' = bewusst kein Tag )   (nur Abweichungen vom Standard)
+ *   colors => array( Tag klein geschrieben => #rrggbb )
  */
 class GCalMK_Tags {
 
-	const OPT_DEFS = 'gcalmk_tag_defs';
-	const OPT_MAP  = 'gcalmk_tag_map';
+	const OPT = 'gcalmk_tagdata';
 
-	/** Schlüssel eines Termintitels (Groß-/Kleinschreibung und Leerraum egal). */
+	/** Auswahl der Farben für das Dropdown (Name => Hex). */
+	public static function palette() {
+		return array(
+			'#c62828' => 'Rot',
+			'#7b1e3a' => 'Bordeaux',
+			'#e65100' => 'Orange',
+			'#b8860b' => 'Senf',
+			'#6d4c41' => 'Braun',
+			'#6b7d1f' => 'Oliv',
+			'#43a047' => 'Hellgrün',
+			'#2e7d32' => 'Grün',
+			'#1b5e20' => 'Dunkelgrün',
+			'#00897b' => 'Türkis',
+			'#006978' => 'Petrol',
+			'#1e88e5' => 'Hellblau',
+			'#1565c0' => 'Blau',
+			'#0d3b8c' => 'Dunkelblau',
+			'#6a1b9a' => 'Violett',
+			'#9c27b0' => 'Lila',
+			'#c2185b' => 'Magenta',
+			'#ec407a' => 'Rosa',
+			'#6b7280' => 'Grau',
+			'#222222' => 'Schwarz',
+		);
+	}
+
+	/** Reihenfolge, in der neue Tags automatisch Farben bekommen (wechselt die Farbfamilie von Tag zu Tag). */
+	private static function auto_order() {
+		return array( '#c62828', '#1e88e5', '#2e7d32', '#e65100', '#6a1b9a', '#00897b', '#b8860b', '#c2185b', '#1565c0', '#6b7d1f', '#7b1e3a', '#ec407a', '#1b5e20', '#9c27b0', '#6d4c41', '#006978', '#43a047', '#0d3b8c', '#6b7280', '#222222' );
+	}
+
+	public static function data() {
+		$d = get_option( self::OPT, array() );
+		if ( ! is_array( $d ) ) {
+			$d = array();
+		}
+		$d['titles'] = isset( $d['titles'] ) && is_array( $d['titles'] ) ? $d['titles'] : array();
+		$d['colors'] = isset( $d['colors'] ) && is_array( $d['colors'] ) ? $d['colors'] : array();
+		return $d;
+	}
+
+	/** Titel ohne führende Ordnungszahl ("10. "), Emojis/Symbole und doppelte Leerzeichen. */
+	private static function stripped( $title ) {
+		$t = preg_replace( '/^\s*\d+\s*\.\s+/u', '', (string) $title );
+		$t = preg_replace( '/[\p{So}\p{Sk}\x{FE0F}\x{200D}]+/u', '', $t );
+		return trim( preg_replace( '/\s+/u', ' ', $t ) );
+	}
+
+	/** Schlüssel eines Termins: gleich, wenn sich Titel nur durch Zahl am Anfang, Emojis, Satzzeichen oder Groß-/Kleinschreibung unterscheiden. */
 	public static function title_key( $title ) {
-		$t = mb_strtolower( trim( preg_replace( '/\s+/u', ' ', (string) $title ) ), 'UTF-8' );
+		$t = mb_strtolower( self::stripped( $title ), 'UTF-8' );
+		$t = trim( preg_replace( '/[^\p{L}\p{N}]+/u', ' ', $t ) );
 		return md5( $t );
 	}
 
-	public static function defs() {
-		$d = get_option( self::OPT_DEFS, array() );
-		return is_array( $d ) ? $d : array();
+	/** Standard-Tag: der bereinigte Titel. */
+	public static function default_tag( $title ) {
+		static $cache = array();
+		if ( isset( $cache[ $title ] ) ) {
+			return $cache[ $title ];
+		}
+		$t = trim( self::stripped( $title ), " \t-–—:,;" );
+		if ( '' === $t ) {
+			$t = '(ohne Titel)';
+		}
+		$t = mb_strtoupper( mb_substr( $t, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $t, 1, null, 'UTF-8' );
+		$cache[ $title ] = $t;
+		return $t;
 	}
 
-	public static function map() {
-		$m = get_option( self::OPT_MAP, array() );
-		return is_array( $m ) ? $m : array();
+	public static function norm( $tag ) {
+		return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', (string) $tag ) ), 'UTF-8' );
 	}
 
-	/** Eindeutige Termintitel aus dem Cache: array( key => array( title, count, recurring ) ), alphabetisch. */
+	/** Tag eines Eintrags: gespeicherte Abweichung oder Standard. */
+	public static function effective_tag( $title, $key, $data ) {
+		if ( isset( $data['titles'][ $key ] ) ) {
+			return (string) $data['titles'][ $key ];
+		}
+		return self::default_tag( $title );
+	}
+
+	/** Eindeutige Einträge aus dem Cache: key => array( title, count, recurring ), alphabetisch. */
 	public static function unique_titles( $events ) {
 		$out = array();
 		foreach ( $events as $ev ) {
@@ -50,128 +117,101 @@ class GCalMK_Tags {
 		uasort(
 			$out,
 			function ( $a, $b ) {
-				return strnatcasecmp( $a['title'], $b['title'] );
+				return strnatcasecmp( self::stripped( $a['title'] ), self::stripped( $b['title'] ) );
 			}
 		);
 		return $out;
 	}
 
+	/** Farbe eines Tags ohne gespeicherte Wahl (stabil über den Namen). */
+	private static function fallback_color( $tag_norm ) {
+		$order = self::auto_order();
+		return $order[ hexdec( substr( md5( $tag_norm ), 0, 6 ) ) % count( $order ) ];
+	}
+
 	/**
-	 * Fügt jedem Termin sein Tag (Name) hinzu und liefert zusätzlich die Farben.
-	 * Gibt array( events, colors ) zurück.
+	 * Fügt jedem Termin sein Tag hinzu. Gibt array( events, colors ) zurück (colors: Tag-Name => #rrggbb).
 	 */
 	public static function apply( $events ) {
-		$defs   = self::defs();
-		$map    = self::map();
+		$data   = self::data();
+		$disp   = array(); // normalisierter Tag => Anzeigename (erste Schreibweise).
 		$colors = array();
-		foreach ( $defs as $d ) {
-			$colors[ $d['name'] ] = $d['color'];
-		}
 		foreach ( $events as $i => $ev ) {
-			$id                    = isset( $map[ self::title_key( $ev['title'] ) ] ) ? (int) $map[ self::title_key( $ev['title'] ) ] : 0;
-			$events[ $i ]['tags'] = isset( $defs[ $id ] ) ? array( $defs[ $id ]['name'] ) : array();
+			$key = self::title_key( $ev['title'] );
+			$tag = self::effective_tag( $ev['title'], $key, $data );
+			$tn  = self::norm( $tag );
+			if ( '' === $tn ) {
+				$events[ $i ]['tags'] = array();
+				continue;
+			}
+			if ( ! isset( $disp[ $tn ] ) ) {
+				$disp[ $tn ]            = trim( preg_replace( '/\s+/u', ' ', $tag ) );
+				$colors[ $disp[ $tn ] ] = isset( $data['colors'][ $tn ] ) ? $data['colors'][ $tn ] : self::fallback_color( $tn );
+			}
+			$events[ $i ]['tags'] = array( $disp[ $tn ] );
 		}
 		return array( $events, $colors );
 	}
 
-	/** Vorschlagsfarbe: Farbtöne im Goldenen Winkel, nach je 12 Farben wechselt die Helligkeit. */
-	public static function palette( $n ) {
-		$levels = array( array( 55, 34 ), array( 62, 44 ), array( 50, 26 ) );
-		$lv     = $levels[ intdiv( $n, 12 ) % 3 ];
-		return self::hsl_to_hex( fmod( $n * 137.508, 360 ), $lv[0], $lv[1] );
-	}
-
-	private static function hsl_to_hex( $h, $s, $l ) {
-		$s /= 100;
-		$l /= 100;
-		$c  = ( 1 - abs( 2 * $l - 1 ) ) * $s;
-		$x  = $c * ( 1 - abs( fmod( $h / 60, 2 ) - 1 ) );
-		$m  = $l - $c / 2;
-		if ( $h < 60 ) {
-			list( $r, $g, $b ) = array( $c, $x, 0 );
-		} elseif ( $h < 120 ) {
-			list( $r, $g, $b ) = array( $x, $c, 0 );
-		} elseif ( $h < 180 ) {
-			list( $r, $g, $b ) = array( 0, $c, $x );
-		} elseif ( $h < 240 ) {
-			list( $r, $g, $b ) = array( 0, $x, $c );
-		} elseif ( $h < 300 ) {
-			list( $r, $g, $b ) = array( $x, 0, $c );
-		} else {
-			list( $r, $g, $b ) = array( $c, 0, $x );
+	/** Vergibt Farben für Tags ohne gespeicherte Farbe (jeweils die nächste der Reihe) und speichert sie. Gibt tag => hex zurück. */
+	public static function ensure_colors( $events ) {
+		$data    = self::data();
+		$order   = self::auto_order();
+		$changed = false;
+		foreach ( self::unique_titles( $events ) as $k => $u ) {
+			$tn = self::norm( self::effective_tag( $u['title'], $k, $data ) );
+			if ( '' === $tn || isset( $data['colors'][ $tn ] ) ) {
+				continue;
+			}
+			$data['colors'][ $tn ] = $order[ count( $data['colors'] ) % count( $order ) ];
+			$changed               = true;
 		}
-		return sprintf( '#%02x%02x%02x', round( ( $r + $m ) * 255 ), round( ( $g + $m ) * 255 ), round( ( $b + $m ) * 255 ) );
+		if ( $changed ) {
+			update_option( self::OPT, $data, false );
+		}
+		return $data['colors'];
 	}
 
 	/**
-	 * Tag-Liste aus dem Formular: Zeilen array( id, name, color, delete ).
-	 * Auch die fertige Liste (id => Zeile) ist gültige Eingabe, WordPress ruft die Bereinigung teils zweimal auf.
+	 * Eingabe der Einstellungsseite: gcalmk_tagdata[md5][t] = Tag-Text, [c] = Farbe.
+	 * Nicht gesendete Einträge bleiben unverändert. WordPress ruft die Bereinigung teils zweimal auf; die fertige Struktur wird durchgereicht.
 	 */
-	public static function sanitize_defs( $in ) {
-		$old = self::defs();
+	public static function sanitize( $in ) {
+		$data = self::data();
 		if ( ! is_array( $in ) ) {
-			return $old;
+			return $data;
 		}
-		$max = 0;
-		foreach ( $old as $id => $d ) {
-			$max = max( $max, (int) $id );
-		}
-		foreach ( $in as $row ) {
-			if ( is_array( $row ) && isset( $row['id'] ) ) {
-				$max = max( $max, (int) $row['id'] );
-			}
-		}
-
-		$out   = array();
-		$names = array();
-		foreach ( $in as $row ) {
-			if ( ! is_array( $row ) || ! empty( $row['delete'] ) ) {
-				continue;
-			}
-			$name = trim( sanitize_text_field( isset( $row['name'] ) ? (string) $row['name'] : '' ) );
-			if ( '' === $name ) {
-				continue;
-			}
-			$lk = mb_strtolower( $name, 'UTF-8' );
-			if ( isset( $names[ $lk ] ) ) {
-				continue; // Namen sind eindeutig.
-			}
-			$id = isset( $row['id'] ) ? (int) $row['id'] : 0;
-			if ( $id <= 0 || isset( $out[ $id ] ) ) {
-				$id = ++$max;
-			}
-			$hex = isset( $row['color'] ) ? sanitize_hex_color( (string) $row['color'] ) : '';
-			if ( ! $hex ) {
-				$hex = isset( $old[ $id ]['color'] ) ? $old[ $id ]['color'] : self::palette( count( $out ) );
-			}
-			$names[ $lk ] = true;
-			$out[ $id ]   = array(
-				'id'    => $id,
-				'name'  => $name,
-				'color' => strtolower( $hex ),
+		if ( isset( $in['titles'] ) || isset( $in['colors'] ) ) {
+			return array(
+				'titles' => isset( $in['titles'] ) && is_array( $in['titles'] ) ? $in['titles'] : array(),
+				'colors' => isset( $in['colors'] ) && is_array( $in['colors'] ) ? $in['colors'] : array(),
 			);
 		}
-		return $out;
-	}
 
-	/** Zuordnung aus dem Formular: md5 => Tag-ID (leer/0 = Zuordnung entfernen). Nicht gesendete Einträge bleiben. */
-	public static function sanitize_map( $in ) {
-		$map = self::map();
-		if ( ! is_array( $in ) ) {
-			return $map;
+		$allowed  = self::palette();
+		$defaults = array();
+		foreach ( self::unique_titles( GCalMK_Sync::get_cache()['events'] ) as $k => $u ) {
+			$defaults[ $k ] = self::norm( self::default_tag( $u['title'] ) );
 		}
-		foreach ( $in as $k => $v ) {
+
+		foreach ( $in as $k => $row ) {
 			$k = strtolower( preg_replace( '/[^A-Fa-f0-9]/', '', (string) $k ) );
-			if ( 32 !== strlen( $k ) ) {
+			if ( 32 !== strlen( $k ) || ! is_array( $row ) ) {
 				continue;
 			}
-			$v = (int) $v;
-			if ( $v > 0 ) {
-				$map[ $k ] = $v;
+			$tag = trim( preg_replace( '/\s+/u', ' ', sanitize_text_field( isset( $row['t'] ) ? (string) $row['t'] : '' ) ) );
+			$tag = mb_substr( $tag, 0, 80, 'UTF-8' );
+			$tn  = self::norm( $tag );
+			if ( isset( $defaults[ $k ] ) && $tn === $defaults[ $k ] ) {
+				unset( $data['titles'][ $k ] ); // entspricht dem Standard
 			} else {
-				unset( $map[ $k ] );
+				$data['titles'][ $k ] = $tag; // '' = bewusst kein Tag
+			}
+			$hex = isset( $row['c'] ) ? strtolower( (string) $row['c'] ) : '';
+			if ( '' !== $tn && isset( $allowed[ $hex ] ) ) {
+				$data['colors'][ $tn ] = $hex;
 			}
 		}
-		return $map;
+		return $data;
 	}
 }

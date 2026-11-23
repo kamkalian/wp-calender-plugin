@@ -46,6 +46,12 @@
 		return ev.startDate === ev.endDate ? longDate(ev.startDate) : longDate(ev.startDate) + ' bis ' + longDate(ev.endDate);
 	}
 
+	// Abstand des fixierten Kopfbereichs zum oberen Fensterrand (Shortcode-Attribut oben="70", z. B. bei festem Theme-Header).
+	function root_top(root) {
+		var v = parseInt(root.getAttribute('data-top'), 10);
+		return isNaN(v) ? null : Math.max(0, v);
+	}
+
 	function Calendar(root) {
 		this.root = root;
 		this.endpoint = root.getAttribute('data-endpoint');
@@ -53,6 +59,7 @@
 		this.showTags = root.getAttribute('data-tags') !== '0';
 		this.tag = root.getAttribute('data-tag') || '';
 		this.tagsOpen = false;
+		this.tagRecurring = {};
 		this.colors = {};
 		this.query = '';
 		this.events = [];
@@ -80,7 +87,13 @@
 		this.tagPanel.hidden = true;
 		this.tagWrap.appendChild(this.tagHead);
 		this.tagWrap.appendChild(this.tagPanel);
-		if (this.showTags) { this.root.appendChild(this.tagWrap); }
+
+		// Kopfbereich (Tags, Monatsnavigation, Suche, Wochentage): scrollt zuerst bis zum oberen Seitenrand
+		// und bleibt dann stehen (position: sticky), während der Rest der Tabelle weiterscrollt.
+		this.sticky = el('div', 'gcalmk-sticky');
+		var stickyTop = root_top(this.root);
+		if (stickyTop !== null) { this.root.style.setProperty('--gk-top', stickyTop + 'px'); }
+		if (this.showTags) { this.sticky.appendChild(this.tagWrap); }
 
 		var top = el('div', 'gcalmk-top');
 		this.nav = el('div', 'gcalmk-nav');
@@ -127,7 +140,14 @@
 			box.appendChild(this.input);
 			top.appendChild(box);
 		}
-		this.root.appendChild(top);
+		this.sticky.appendChild(top);
+
+		// Wochentage gehören zum fixierten Kopf (nicht zum scrollenden Raster).
+		this.weekdays = el('div', 'gcalmk-weekdays');
+		this.weekdays.setAttribute('aria-hidden', 'true');
+		WDAYS.forEach(function (w) { self.weekdays.appendChild(el('div', 'gcalmk-wd', w)); });
+		this.sticky.appendChild(this.weekdays);
+		this.root.appendChild(this.sticky);
 
 		this.body = el('div', 'gcalmk-body');
 		this.root.appendChild(this.body);
@@ -174,11 +194,15 @@
 
 	// Nur Tags mit mindestens einem Termin ab heute, nach Häufigkeit (künftige Termine) sortiert.
 	Calendar.prototype.computeTags = function () {
-		var counts = {}, today = this.todayIso;
+		var counts = {}, today = this.todayIso, rec = {};
 		this.events.forEach(function (ev) {
 			if (ev.endDate < today) { return; }
-			ev.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+			ev.tags.forEach(function (t) {
+				counts[t] = (counts[t] || 0) + 1;
+				if (ev.recurring) { rec[t] = true; } // Tag mit wiederkehrenden Terminen
+			});
 		});
+		this.tagRecurring = rec;
 		this.tags = Object.keys(counts).sort(function (a, b) {
 			return (counts[b] - counts[a]) || a.localeCompare(b, 'de');
 		});
@@ -213,7 +237,7 @@
 		this.tagWrap.hidden = false;
 
 		// Schaltfläche in neutralem Weiß; die Tag-Farbe zeigt nur ein Punkt.
-		var chip = function (label, color, selected) {
+		var chip = function (label, color, selected, recurring) {
 			var b = el('button', 'gcalmk-chip');
 			b.type = 'button';
 			var dot = el('span', 'gcalmk-dot');
@@ -221,6 +245,7 @@
 			dot.setAttribute('aria-hidden', 'true');
 			b.appendChild(dot);
 			b.appendChild(el('span', 'gcalmk-chip-label', label));
+			if (recurring) { b.appendChild(recIcon()); }
 			if (selected !== undefined) { b.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
 			return b;
 		};
@@ -237,7 +262,8 @@
 
 		// Gewählter Tag bleibt dauerhaft sichtbar; Klick darauf hebt den Filter auf.
 		if (this.tag) {
-			var sel = chip(this.tag + '  ×', this.colorOf(this.tag), true);
+			var sel = chip(this.tag, this.colorOf(this.tag), true, this.tagRecurring[this.tag]);
+			sel.appendChild(el('span', 'gcalmk-x', '×'));
 			sel.classList.add('gcalmk-chip-selected');
 			sel.setAttribute('aria-label', 'Tag ' + this.tag + ' aktiv, Filter aufheben');
 			sel.addEventListener('click', function () { self.setTag(''); });
@@ -246,7 +272,7 @@
 
 		this.tagPanel.hidden = !this.tagsOpen;
 		this.tags.forEach(function (t) {
-			var b = chip(t, self.colorOf(t), self.tag === t);
+			var b = chip(t, self.colorOf(t), self.tag === t, self.tagRecurring[t]);
 			b.addEventListener('click', function () { self.setTag(t); });
 			self.tagPanel.appendChild(b);
 		});
@@ -277,9 +303,11 @@
 		var list = this.filtered();
 		if (this.query.length >= 2) {
 			this.nav.classList.add('gcalmk-hidden');
+			this.weekdays.hidden = true;
 			this.renderSearch(list);
 		} else {
 			this.nav.classList.remove('gcalmk-hidden');
+			this.weekdays.hidden = false;
 			this.renderMonth(list);
 		}
 	};
@@ -300,9 +328,7 @@
 			b.type = 'button';
 			b.appendChild(el('span', 'gcalmk-r-date', shortDate(ev.startDate)));
 			var main = el('span', 'gcalmk-r-main');
-			var ttl = el('span', 'gcalmk-r-title', ev.title);
-			if (ev.recurring) { ttl.appendChild(document.createTextNode(' ')); ttl.appendChild(recIcon()); }
-			main.appendChild(ttl);
+			main.appendChild(el('span', 'gcalmk-r-title', ev.title));
 			main.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
 			b.appendChild(main);
 			b.appendChild(el('span', 'gcalmk-r-chev', '›'));
@@ -340,11 +366,6 @@
 		var grid = el('div', 'gcalmk-grid');
 		grid.setAttribute('role', 'grid');
 		grid.setAttribute('aria-label', MONTHS[m] + ' ' + y);
-		WDAYS.forEach(function (w) {
-			var h = el('div', 'gcalmk-wd', w);
-			h.setAttribute('role', 'columnheader');
-			grid.appendChild(h);
-		});
 
 		for (var i = 0; i < rows * 7; i++) {
 			var d = i - lead + 1;
@@ -442,12 +463,8 @@
 		var self = this;
 		var b = el('button', 'gcalmk-pill');
 		b.type = 'button';
-		var showTime = !ev.allDay && key === ev.startDate;
-		if (showTime || ev.recurring) {
-			var meta = el('span', 'gcalmk-p-time');
-			if (showTime) { meta.appendChild(document.createTextNode(ev.startTime)); }
-			if (ev.recurring) { meta.appendChild(recIcon()); }
-			b.appendChild(meta);
+		if (!ev.allDay && key === ev.startDate) {
+			b.appendChild(el('span', 'gcalmk-p-time', ev.startTime));
 		}
 		b.appendChild(el('span', 'gcalmk-p-title', ev.title));
 		b.title = (ev.allDay ? '' : ev.startTime + ' ') + ev.title;

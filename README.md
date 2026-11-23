@@ -18,14 +18,18 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `suche="nein"` | Suche ausblenden |
 | `tags="nein"` | Tag-Leiste ausblenden |
 | `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
+| `oben="70"` | Abstand des fixierten Kopfbereichs zum oberen Fensterrand in Pixel (bei festem Theme-Header) |
 
 ## Tags
-Tags werden **manuell** gepflegt: *Einstellungen → Google-Kalender → Tags* legt Tags mit Farbe an, darunter steht die Liste aller Termine (eindeutig nach Titel, Wiederholungen zählen als einer) mit Suchfeld; jedem Eintrag wird ein Tag zugeordnet („Allen angezeigten zuweisen“ für viele auf einmal). Änderungen wirken sofort.
+Jeder Termin bekommt **automatisch seinen Titel als Tag** (führende Zahl wie „10. “, Emojis und Schreibweisen-Unterschiede werden ignoriert, damit z. B. „10. irischer Abend“ und „11. irischer Abend“ ein Eintrag sind). Unter *Einstellungen → Google-Kalender → Termine und Tags* steht die Liste aller Termine (eindeutig, Wiederholungen zählen als einer) mit Suchfeld: Im Textfeld lässt sich der Tag frei umschreiben (gleiche Tags werden zusammengefasst), „Löschen“ entfernt ihn, im Dropdown wählst du die Farbe. Mit „Für alle angezeigten Termine“ setzt oder löscht man Tags für die gerade gefilterte Liste auf einmal. Änderungen wirken sofort.
 
 Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
 
 ## Wiederkehrende Termine
-Google liefert bei aufgelösten Serien die Serien-ID (`recurringEventId`) mit. Solche Termine werden im Kalender mit dem Symbol ↻ gekennzeichnet.
+Google liefert bei aufgelösten Serien die Serien-ID (`recurringEventId`) mit. Ein Tag, dessen Termine wiederkehrend sind, trägt in der Tag-Leiste das Symbol ↻ (an den Terminen im Raster steht es nicht).
+
+## Fixierter Kopfbereich
+Tags, Monatsnavigation, Suche und Wochentage bleiben beim Scrollen am oberen Rand stehen (zuerst scrollt der Bereich mit der Seite, dann bleibt er haften und nur die Tabelle scrollt weiter). Hat das Theme einen festen Header, mit `oben="70"` (Pixel) den Abstand einstellen.
 
 ## Heute
 Der heutige Tag ist im Raster durch Rahmen, Hintergrund und einen roten Balken mit „Heute“ hervorgehoben.
