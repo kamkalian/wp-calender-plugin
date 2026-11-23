@@ -4,7 +4,8 @@
 	var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 	var WDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 	var WDAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-	var MAX_ROWS = 4;
+	var MAX_ROWS = 5;   // Termine je Tag im Raster, Rest unter "weitere"
+	var LANE_W = 8;     // Breite einer Zeitlinie in px
 
 	function el(tag, cls, text) {
 		var e = document.createElement(tag);
@@ -267,20 +268,33 @@
 			num.appendChild(el('span', 'gcalmk-dlong', longDate(key)));
 			cell.appendChild(num);
 
-			var rowList = self.dayRows(evs, key);
-			var hidden = 0;
-			rowList.slice(MAX_ROWS).forEach(function (r) { hidden += r.length; });
-			rowList.slice(0, MAX_ROWS).forEach(function (row) {
-				if (row.length === 1) {
-					cell.appendChild(self.pill(row[0], key));
-					return;
-				}
-				// Zeitlich überlappende Termine nebeneinander.
-				var group = el('div', 'gcalmk-cluster');
-				group.style.setProperty('--cols', String(Math.min(row.length, 2)));
-				row.forEach(function (ev) { group.appendChild(self.pill(ev, key)); });
-				cell.appendChild(group);
+			var lay = self.dayLayout(evs, key);
+			var budget = MAX_ROWS;
+			lay.allDay.slice(0, budget).forEach(function (ev) {
+				var p = self.pill(ev, key);
+				p.classList.add('gcalmk-pill-allday');
+				cell.appendChild(p);
 			});
+			budget -= Math.min(budget, lay.allDay.length);
+			if (budget > 0 && lay.timed.length) {
+				// Termine untereinander; farbige Linien laufen über alle Termine, die in ihre Zeit fallen.
+				var stack = el('div', 'gcalmk-stack');
+				lay.timed.slice(0, budget).forEach(function (ev, r) {
+					var item = el('div', 'gcalmk-item');
+					item.style.paddingLeft = (lay.laneCount * LANE_W) + 'px';
+					lay.segs[r].forEach(function (s) {
+						var seg = el('span', 'gcalmk-lane gcalmk-lane-' + (s.lane % 3));
+						seg.style.left = (s.lane * LANE_W) + 'px';
+						if (s.first) { seg.classList.add('is-first'); }
+						if (s.end) { seg.classList.add('is-end'); }
+						item.appendChild(seg);
+					});
+					item.appendChild(self.pill(ev, key));
+					stack.appendChild(item);
+				});
+				cell.appendChild(stack);
+			}
+			var hidden = lay.allDay.length + lay.timed.length - Math.min(MAX_ROWS, lay.allDay.length + lay.timed.length);
 			if (hidden > 0) {
 				var more = el('button', 'gcalmk-more', '+ ' + hidden + ' weitere – alle anzeigen');
 				more.type = 'button';
@@ -299,33 +313,39 @@
 		}
 	};
 
-	// Zeilen eines Tages: ganztägige Termine einzeln, zeitlich überlappende Termine zu einer Zeile gebündelt.
-	Calendar.prototype.dayRows = function (evs, key) {
-		var rows = [];
-		var timed = [];
-		evs.forEach(function (ev) {
-			if (ev.allDay) { rows.push([ev]); } else { timed.push(ev); }
-		});
+	// Tageslayout: ganztägige Termine, zeitgebundene Termine nach Beginn sortiert und je Termin eine
+	// "Zeitlinie": sie läuft vom eigenen Eintrag über alle folgenden Einträge, die vor seinem Ende beginnen.
+	Calendar.prototype.dayLayout = function (evs, key) {
+		var allDay = [], timed = [];
+		evs.forEach(function (ev) { (ev.allDay ? allDay : timed).push(ev); });
 		var span = function (ev) {
-			return {
-				s: key === ev.startDate ? ev.startTime : '00:00',
-				e: key === ev.endDate && ev.endTime > ev.startTime ? ev.endTime : (key === ev.endDate ? ev.startTime : '24:00')
-			};
+			var s = key === ev.startDate ? ev.startTime : '00:00';
+			var e = key === ev.endDate ? (ev.endTime > ev.startTime ? ev.endTime : ev.startTime) : '24:00';
+			return { s: s, e: e };
 		};
-		timed.sort(function (a, b) { return span(a).s < span(b).s ? -1 : (span(a).s > span(b).s ? 1 : 0); });
-		var cur = null, curEnd = '';
-		timed.forEach(function (ev) {
-			var t = span(ev);
-			if (cur && t.s < curEnd) {
-				cur.push(ev);
-				if (t.e > curEnd) { curEnd = t.e; }
-			} else {
-				cur = [ev];
-				rows.push(cur);
-				curEnd = t.e;
-			}
+		timed.sort(function (a, b) {
+			var x = span(a).s, y = span(b).s;
+			return x < y ? -1 : (x > y ? 1 : 0);
 		});
-		return rows;
+		var n = timed.length, last = [], lane = [], laneEnd = [], i, j, l;
+		for (i = 0; i < n; i++) {
+			var end = span(timed[i]).e;
+			j = i;
+			while (j + 1 < n && span(timed[j + 1]).s < end) { j++; }
+			last[i] = j;
+			l = 0;
+			while (l < laneEnd.length && laneEnd[l] >= i) { l++; }
+			lane[i] = l;
+			laneEnd[l] = j;
+		}
+		var segs = [];
+		for (var r = 0; r < n; r++) {
+			segs[r] = [];
+			for (i = 0; i <= r; i++) {
+				if (last[i] >= r) { segs[r].push({ lane: lane[i], first: i === r, end: last[i] === r }); }
+			}
+		}
+		return { allDay: allDay, timed: timed, segs: segs, laneCount: Math.max(1, laneEnd.length) };
 	};
 
 	Calendar.prototype.pill = function (ev, key) {
@@ -337,7 +357,7 @@
 		}
 		b.appendChild(el('span', 'gcalmk-p-title', ev.title));
 		b.title = (ev.allDay ? '' : ev.startTime + ' ') + ev.title;
-		if (ev.startDate !== ev.endDate) { b.classList.add('gcalmk-multi'); }
+		if (ev.allDay && ev.startDate !== ev.endDate) { b.classList.add('gcalmk-multi'); }
 		b.addEventListener('click', function () { self.openEvent(ev, false); });
 		return b;
 	};
@@ -402,11 +422,6 @@
 			box.appendChild(el('h4', 'gcalmk-d-title', ev.title));
 			box.appendChild(el('p', 'gcalmk-d-when', dateRangeText(ev) + (ev.allDay ? '' : ', ' + timeText(ev))));
 			if (ev.location) { box.appendChild(el('p', 'gcalmk-d-where', '📍 ' + ev.location)); }
-			if (ev.tags.length) {
-				var tl = el('p', 'gcalmk-d-tags');
-				ev.tags.forEach(function (t) { tl.appendChild(el('span', 'gcalmk-tag', t)); });
-				box.appendChild(tl);
-			}
 			if (ev.description) {
 				var d = el('div', 'gcalmk-d-desc');
 				d.innerHTML = ev.description; // serverseitig mit wp_kses bereinigt

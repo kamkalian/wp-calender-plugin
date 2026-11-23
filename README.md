@@ -20,7 +20,7 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
 
 ## Tags
-Im Google-Termin `#Tag` in Titel oder Beschreibung schreiben, z. B. `Training #Jugend`. Alle gefundenen Tags erscheinen als Filter-Schaltflächen; im Termin selbst werden sie ausgeblendet.
+Als Tag dient automatisch das **erste Wort des Termintitels** (z. B. „Jugendtraining Halle 2“ → `Jugendtraining`). Alle Tags erscheinen als Filter-Schaltflächen über dem Kalender.
 
 ## Technik
 - Abruf per WP-Cron (`gcalmk_10min`), Ergebnis liegt in der Option `gcalmk_cache`; Besucher lösen nie einen Google-Abruf aus. Bei Fehlern bleibt der alte Cache bestehen.

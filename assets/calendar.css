@@ -73,7 +73,7 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 	min-height: 120px; padding: 0 0 4px; display: flex; flex-direction: column; gap: 4px;
 	border-right: 1px solid var(--gk-border); border-bottom: 1px solid var(--gk-border);
 }
-.gcalmk-cell > .gcalmk-pill, .gcalmk-cell > .gcalmk-cluster, .gcalmk-cell > .gcalmk-more { margin-left: 4px; margin-right: 4px; width: auto; }
+.gcalmk-cell > .gcalmk-pill, .gcalmk-cell > .gcalmk-more { margin-left: 4px; margin-right: 4px; width: auto; }
 .gcalmk-out { background: var(--gk-void); }
 
 /* Tageszahl als roter Balken */
@@ -85,11 +85,12 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 
 /* Termine: Überschrift im Vordergrund, Uhrzeit klein */
 .gcalmk-pill {
-	display: block; padding: 4px 7px; border: 0; border-left: 4px solid var(--gk-accent); border-radius: 3px;
+	display: block; padding: 4px 7px; border: 0; border-radius: 3px;
 	background: #fff; color: var(--gk-text); text-align: left; min-width: 0;
 }
 .gcalmk-pill:hover { background: #fffaf0; box-shadow: 0 0 0 1px var(--gk-accent); }
-.gcalmk-multi { border-left-color: var(--gk-secondary); }
+.gcalmk-pill-allday { border-left: 4px solid var(--gk-accent); }
+.gcalmk-pill-allday.gcalmk-multi { border-left-color: var(--gk-secondary); }
 .gcalmk-p-time { display: block; font-size: .72em; line-height: 1.2; color: var(--gk-secondary); }
 .gcalmk-p-title {
 	display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -100,10 +101,18 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 	color: var(--gk-link); font-size: .85em; text-decoration: underline;
 }
 
-/* Zeitlich überlappende Termine nebeneinander */
-.gcalmk-cluster { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 4px; }
-.gcalmk-cluster .gcalmk-pill { padding: 4px 5px; }
-.gcalmk-cluster .gcalmk-p-title { font-size: .88em; }
+/* Termine untereinander; die farbige Linie links läuft über alle Termine, die in die Zeit des Termins fallen */
+.gcalmk-stack { display: flex; flex-direction: column; margin-left: 4px; margin-right: 4px; }
+.gcalmk-item { position: relative; padding-bottom: 4px; }
+.gcalmk-item:last-child { padding-bottom: 0; }
+.gcalmk-item .gcalmk-pill { width: 100%; }
+.gcalmk-lane { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--gk-accent); }
+.gcalmk-lane-1 { background: var(--gk-secondary); }
+.gcalmk-lane-2 { background: #c9892b; }
+.gcalmk-lane.is-first { border-radius: 3px 3px 0 0; }
+.gcalmk-lane.is-end { bottom: 4px; border-radius: 0 0 3px 3px; }
+.gcalmk-lane.is-first.is-end { border-radius: 3px; }
+.gcalmk-item:last-child .gcalmk-lane { bottom: 0; }
 
 /* Listen (Suche, Tagesdialog) */
 .gcalmk-results { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--gk-border, #d7cfab); }
@@ -158,7 +167,6 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 	.gcalmk-dnum { text-align: left; padding: 4px 8px; }
 	.gcalmk-pill { padding: 6px 8px; }
 	.gcalmk-p-title { font-size: 1em; }
-	.gcalmk-cluster { grid-template-columns: 1fr; }
 	.gcalmk-top { flex-direction: column; align-items: stretch; }
 	.gcalmk-search input { width: 100%; }
 	.gcalmk-r-date { min-width: 5.5em; }

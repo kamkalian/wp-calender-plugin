@@ -10,7 +10,7 @@ class GCalMK_Sync {
 
 	const HOOK     = 'gcalmk_sync_event';
 	const SCHEDULE = 'gcalmk_10min';
-	const TAG_RE   = '/(?<![\w&\/=#])#([\p{L}\p{N}_-]+)/u';
+	const CACHE_V  = 3; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
 
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
@@ -37,6 +37,12 @@ class GCalMK_Sync {
 	public static function ensure_scheduled() {
 		if ( ! wp_next_scheduled( self::HOOK ) ) {
 			wp_schedule_event( time() + 60, self::SCHEDULE, self::HOOK );
+		}
+		// Nach einem Plugin-Update mit neuem Datenformat einmal sofort neu abrufen.
+		$cache = get_option( 'gcalmk_cache', array() );
+		if ( is_array( $cache ) && ! empty( $cache['events'] ) && ( isset( $cache['v'] ) ? (int) $cache['v'] : 0 ) < self::CACHE_V
+			&& ! wp_next_scheduled( self::HOOK, array( 'migrate' ) ) ) {
+			wp_schedule_single_event( time() + 5, self::HOOK, array( 'migrate' ) );
 		}
 	}
 
@@ -239,6 +245,7 @@ class GCalMK_Sync {
 		update_option(
 			'gcalmk_cache',
 			array(
+				'v'      => self::CACHE_V,
 				'synced' => time(),
 				'events' => $events,
 				'tags'   => $tags,
@@ -301,24 +308,16 @@ class GCalMK_Sync {
 		$title = isset( $item['summary'] ) ? (string) $item['summary'] : '';
 		$desc  = isset( $item['description'] ) ? (string) $item['description'] : '';
 
-		// Tags: #Wort in Titel und Beschreibung.
-		$plain = html_entity_decode( wp_strip_all_tags( $title . ' ' . $desc ), ENT_QUOTES, 'UTF-8' );
+		// Tag = erstes Wort des Titels (Buchstaben/Ziffern, ohne führende Satzzeichen).
+		$title = trim( preg_replace( '/\s+/u', ' ', $title ) );
 		$tags  = array();
-		if ( preg_match_all( self::TAG_RE, $plain, $m ) ) {
-			foreach ( $m[1] as $raw ) {
-				$raw = trim( $raw, '-_' );
-				if ( '' === $raw ) {
-					continue;
-				}
-				$key = mb_strtolower( $raw, 'UTF-8' );
-				if ( ! isset( $tag_label[ $key ] ) ) {
-					$tag_label[ $key ] = $raw;
-				}
-				$tags[ $key ] = $tag_label[ $key ];
+		if ( preg_match( '/^[^\p{L}\p{N}]*([\p{L}\p{N}][\p{L}\p{N}\'’]*)/u', $title, $m ) && mb_strlen( $m[1], 'UTF-8' ) >= 2 && preg_match( '/\p{L}/u', $m[1] ) ) {
+			$key = mb_strtolower( $m[1], 'UTF-8' );
+			if ( ! isset( $tag_label[ $key ] ) ) {
+				$tag_label[ $key ] = $m[1];
 			}
+			$tags[] = $tag_label[ $key ];
 		}
-
-		$title = trim( preg_replace( '/\s{2,}/u', ' ', preg_replace( self::TAG_RE, '', $title ) ) );
 		if ( '' === $title ) {
 			$title = '(ohne Titel)';
 		}
@@ -338,7 +337,7 @@ class GCalMK_Sync {
 			'ol'     => array(),
 			'li'     => array(),
 		);
-		$desc    = wp_kses( preg_replace( self::TAG_RE, '', $desc ), $allowed, array( 'http', 'https', 'mailto', 'tel' ) );
+		$desc    = wp_kses( $desc, $allowed, array( 'http', 'https', 'mailto', 'tel' ) );
 		$desc    = trim( $desc );
 
 		return array(

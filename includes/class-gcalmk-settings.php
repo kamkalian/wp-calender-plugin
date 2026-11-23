@@ -210,8 +210,8 @@ class GCalMK_Settings {
 			<p>Shortcode auf einer Seite einfügen: <code>[gcal_kalender]</code></p>
 			<p>Optional (Standard: volle Seitenbreite, mit <code>breite="inhalt"</code> nur Inhaltsbreite): <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste.</p>
 
-			<h2>Tags vergeben</h2>
-			<p>Schreibe im Google-Kalender ein <code>#Tag</code> in den Titel oder die Beschreibung des Termins, z. B. <code>Training #Jugend</code>. Der Tag erscheint als Filter-Schaltfläche über dem Kalender und wird in der Anzeige ausgeblendet.</p>
+			<h2>Tags</h2>
+			<p>Als Tag dient automatisch das <strong>erste Wort des Termintitels</strong> (z. B. „Jugendtraining Halle 2“ → <code>Jugendtraining</code>). Alle Tags erscheinen als Filter-Schaltflächen über dem Kalender.</p>
 			<p class="description">Der Abruf läuft über WP-Cron alle 10 Minuten (bei Besuchen der Seite). Für exakte Takte einen Server-Cron auf <code>wp-cron.php</code> einrichten und <code>DISABLE_WP_CRON</code> setzen.</p>
 		</div>
 		<?php
