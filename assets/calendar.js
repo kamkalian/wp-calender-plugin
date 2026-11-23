@@ -4,7 +4,7 @@
 	var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 	var WDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 	var WDAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-	var MAX_PILLS = 3;
+	var MAX_ROWS = 4;
 
 	function el(tag, cls, text) {
 		var e = document.createElement(tag);
@@ -202,8 +202,12 @@
 			var b = el('button', 'gcalmk-result');
 			b.type = 'button';
 			b.appendChild(el('span', 'gcalmk-r-date', shortDate(ev.startDate)));
-			b.appendChild(el('span', 'gcalmk-r-title', ev.title));
-			b.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
+			var main = el('span', 'gcalmk-r-main');
+			main.appendChild(el('span', 'gcalmk-r-title', ev.title));
+			main.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
+			b.appendChild(main);
+			b.appendChild(el('span', 'gcalmk-r-chev', '›'));
+			b.setAttribute('aria-label', ev.title + ', Details anzeigen');
 			b.addEventListener('click', function () { self.openEvent(ev, true); });
 			li.appendChild(b);
 			ul.appendChild(li);
@@ -263,11 +267,22 @@
 			num.appendChild(el('span', 'gcalmk-dlong', longDate(key)));
 			cell.appendChild(num);
 
-			evs.slice(0, MAX_PILLS).forEach(function (ev) {
-				cell.appendChild(self.pill(ev, key));
+			var rowList = self.dayRows(evs, key);
+			var hidden = 0;
+			rowList.slice(MAX_ROWS).forEach(function (r) { hidden += r.length; });
+			rowList.slice(0, MAX_ROWS).forEach(function (row) {
+				if (row.length === 1) {
+					cell.appendChild(self.pill(row[0], key));
+					return;
+				}
+				// Zeitlich überlappende Termine nebeneinander.
+				var group = el('div', 'gcalmk-cluster');
+				group.style.setProperty('--cols', String(Math.min(row.length, 2)));
+				row.forEach(function (ev) { group.appendChild(self.pill(ev, key)); });
+				cell.appendChild(group);
 			});
-			if (evs.length > MAX_PILLS) {
-				var more = el('button', 'gcalmk-more', '+ ' + (evs.length - MAX_PILLS) + ' weitere');
+			if (hidden > 0) {
+				var more = el('button', 'gcalmk-more', '+ ' + hidden + ' weitere – alle anzeigen');
 				more.type = 'button';
 				(function (k, e) {
 					more.addEventListener('click', function () { self.openDay(k, e); });
@@ -284,13 +299,44 @@
 		}
 	};
 
+	// Zeilen eines Tages: ganztägige Termine einzeln, zeitlich überlappende Termine zu einer Zeile gebündelt.
+	Calendar.prototype.dayRows = function (evs, key) {
+		var rows = [];
+		var timed = [];
+		evs.forEach(function (ev) {
+			if (ev.allDay) { rows.push([ev]); } else { timed.push(ev); }
+		});
+		var span = function (ev) {
+			return {
+				s: key === ev.startDate ? ev.startTime : '00:00',
+				e: key === ev.endDate && ev.endTime > ev.startTime ? ev.endTime : (key === ev.endDate ? ev.startTime : '24:00')
+			};
+		};
+		timed.sort(function (a, b) { return span(a).s < span(b).s ? -1 : (span(a).s > span(b).s ? 1 : 0); });
+		var cur = null, curEnd = '';
+		timed.forEach(function (ev) {
+			var t = span(ev);
+			if (cur && t.s < curEnd) {
+				cur.push(ev);
+				if (t.e > curEnd) { curEnd = t.e; }
+			} else {
+				cur = [ev];
+				rows.push(cur);
+				curEnd = t.e;
+			}
+		});
+		return rows;
+	};
+
 	Calendar.prototype.pill = function (ev, key) {
 		var self = this;
 		var b = el('button', 'gcalmk-pill');
 		b.type = 'button';
-		var label = (!ev.allDay && key === ev.startDate ? ev.startTime + ' ' : '') + ev.title;
-		b.textContent = label;
-		b.title = label;
+		if (!ev.allDay && key === ev.startDate) {
+			b.appendChild(el('span', 'gcalmk-p-time', ev.startTime));
+		}
+		b.appendChild(el('span', 'gcalmk-p-title', ev.title));
+		b.title = (ev.allDay ? '' : ev.startTime + ' ') + ev.title;
 		if (ev.startDate !== ev.endDate) { b.classList.add('gcalmk-multi'); }
 		b.addEventListener('click', function () { self.openEvent(ev, false); });
 		return b;
@@ -330,13 +376,18 @@
 		var self = this;
 		this.dialog(longDate(key), function (box, done) {
 			box.appendChild(el('h4', 'gcalmk-d-title', longDate(key)));
+			box.appendChild(el('p', 'gcalmk-d-hint', 'Termin anklicken, um die Details anzuzeigen.'));
 			var ul = el('ul', 'gcalmk-results');
 			evs.forEach(function (ev) {
 				var li = el('li');
 				var b = el('button', 'gcalmk-result');
 				b.type = 'button';
-				b.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
-				b.appendChild(el('span', 'gcalmk-r-title', ev.title));
+				var main = el('span', 'gcalmk-r-main');
+				main.appendChild(el('span', 'gcalmk-r-title', ev.title));
+				main.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
+				b.appendChild(main);
+				b.appendChild(el('span', 'gcalmk-r-chev', '›'));
+				b.setAttribute('aria-label', ev.title + ', Details anzeigen');
 				b.addEventListener('click', function () { done(); self.openEvent(ev, false); });
 				li.appendChild(b);
 				ul.appendChild(li);
