@@ -20,7 +20,7 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
 
 ## Tags
-Als Tag dient automatisch das **erste Wort des Termintitels** (z. B. „Jugendtraining Halle 2“ → `Jugendtraining`). Über dem Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Jeder Tag hat eine feste Farbe, die auch die Linie am Termin trägt. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
+Als Tag dient automatisch das **erste Wort des Termintitels** (z. B. „Jugendtraining Halle 2“ → `Jugendtraining`). Über dem Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Jeder Tag bekommt automatisch eine eigene Farbe (als Punkt am Tag und als Linie am Termin); die Farben lassen sich unter *Einstellungen → Google-Kalender → Tag-Farben* ändern. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
 
 Unter *Einstellungen → Google-Kalender → Tags ausblenden* lässt sich eine Liste (ein Wort pro Zeile) pflegen; diese Wörter werden nicht als Tag angezeigt, die Termine bleiben sichtbar.
 

@@ -44,10 +44,21 @@ class GCalMK_Rest {
 			$tags = array_values( array_filter( $tags, $keep ) );
 		}
 
+		// Farbe je Tag (Anzeigename => #rrggbb).
+		$map    = GCalMK_Colors::get();
+		$colors = array();
+		foreach ( $tags as $t ) {
+			$k = GCalMK_Colors::key( $t );
+			if ( isset( $map[ $k ] ) ) {
+				$colors[ $t ] = $map[ $k ];
+			}
+		}
+
 		$res = new WP_REST_Response(
 			array(
 				'synced' => (int) $cache['synced'],
 				'tags'   => $tags,
+				'colors' => (object) $colors,
 				'events' => $events,
 			)
 		);

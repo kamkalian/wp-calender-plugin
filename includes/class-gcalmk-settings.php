@@ -63,6 +63,14 @@ class GCalMK_Settings {
 				'sanitize_callback' => array( __CLASS__, 'sanitize' ),
 			)
 		);
+		register_setting(
+			'gcalmk_group',
+			GCalMK_Colors::OPTION,
+			array(
+				'type'              => 'array',
+				'sanitize_callback' => array( 'GCalMK_Colors', 'sanitize' ),
+			)
+		);
 	}
 
 	public static function sanitize( $in ) {
@@ -204,6 +212,43 @@ class GCalMK_Settings {
 						<td>
 							<textarea id="gcalmk_excl" name="<?php echo esc_attr( self::OPTION ); ?>[excluded_tags]" rows="8" class="large-text code" placeholder="Das&#10;Tag&#10;Aktuelle"><?php echo esc_textarea( implode( "\n", $s['excluded_tags'] ) ); ?></textarea>
 							<p class="description">Ein Tag pro Zeile (Groß-/Kleinschreibung egal). Diese Wörter werden nicht als Tag angezeigt, die Termine selbst bleiben sichtbar. Die Liste wirkt sofort, ohne neuen Abruf.</p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row">Tag-Farben</th>
+						<td>
+							<?php
+							$colors = GCalMK_Colors::ensure( $cache['tags'] );
+							$count  = array();
+							foreach ( $cache['events'] as $ev ) {
+								foreach ( $ev['tags'] as $t ) {
+									$count[ $t ] = isset( $count[ $t ] ) ? $count[ $t ] + 1 : 1;
+								}
+							}
+							$excl_lc = array_map( array( 'GCalMK_Colors', 'key' ), $s['excluded_tags'] );
+							?>
+							<?php if ( ! $cache['tags'] ) : ?>
+								<p class="description">Sobald Termine abgerufen sind, erscheinen hier alle Tags. Jeder Tag bekommt automatisch eine eigene Farbe, die du ändern kannst.</p>
+							<?php else : ?>
+								<p class="description" style="margin-top:0">Jeder Tag hat eine eigene Farbe (Punkt am Tag und Linie am Termin). Mit der Farbfläche änderst du sie.</p>
+								<div style="max-height:360px;overflow:auto;border:1px solid #c3c4c7;background:#fff;max-width:560px">
+									<table class="widefat striped" style="border:0">
+										<tbody>
+										<?php foreach ( $cache['tags'] as $i => $tag ) : ?>
+											<?php $hex = isset( $colors[ GCalMK_Colors::key( $tag ) ] ) ? $colors[ GCalMK_Colors::key( $tag ) ] : '#a83326'; ?>
+											<tr>
+												<td style="width:56px">
+													<input type="hidden" name="<?php echo esc_attr( GCalMK_Colors::OPTION ); ?>[<?php echo (int) $i; ?>][tag]" value="<?php echo esc_attr( $tag ); ?>">
+													<input type="color" name="<?php echo esc_attr( GCalMK_Colors::OPTION ); ?>[<?php echo (int) $i; ?>][color]" value="<?php echo esc_attr( $hex ); ?>" aria-label="Farbe für <?php echo esc_attr( $tag ); ?>">
+												</td>
+												<td><?php echo esc_html( $tag ); ?><?php echo in_array( GCalMK_Colors::key( $tag ), $excl_lc, true ) ? ' <em>(ausgeblendet)</em>' : ''; ?></td>
+												<td style="text-align:right;color:#646970"><?php echo esc_html( isset( $count[ $tag ] ) ? $count[ $tag ] : 0 ); ?> Termine</td>
+											</tr>
+										<?php endforeach; ?>
+										</tbody>
+									</table>
+								</div>
+							<?php endif; ?>
 						</td>
 					</tr>
 				</table>

@@ -10,7 +10,7 @@ class GCalMK_Sync {
 
 	const HOOK     = 'gcalmk_sync_event';
 	const SCHEDULE = 'gcalmk_10min';
-	const CACHE_V  = 4; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
+	const CACHE_V  = 5; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
 
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
@@ -253,6 +253,8 @@ class GCalMK_Sync {
 				return $counts[ $b ] <=> $counts[ $a ] ? $counts[ $b ] <=> $counts[ $a ] : strnatcasecmp( $a, $b );
 			}
 		);
+
+		GCalMK_Colors::ensure( $tags ); // jedem Tag eine eigene Farbe zuweisen.
 
 		update_option(
 			'gcalmk_cache',

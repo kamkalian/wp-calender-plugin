@@ -47,14 +47,15 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 	display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 12px;
 	border: 1px solid var(--gk-border); border-radius: 4px; background: #fff;
 }
-/* Farbe je Tag = Farbe der Linie am Termin (per --chip aus dem Skript) */
+/* Tag: neutrale Schaltfläche, die Tag-Farbe (= Farbe der Linie am Termin) nur als Punkt */
 .gcalmk-chip {
-	padding: 5px 14px; border: 2px solid var(--chip, var(--gk-accent)); border-radius: 999px;
-	background: var(--chip, var(--gk-accent)); color: #fff; font-size: .95em;
+	display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px 5px 10px;
+	border: 1px solid var(--gk-border); border-radius: 999px; background: #fff; color: var(--gk-text); font-size: .95em;
 }
-.gcalmk-chip:hover { filter: brightness(1.15); }
-.gcalmk-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--chip, var(--gk-accent)); font-weight: 700; }
-.gcalmk-chip-selected { white-space: pre; }
+.gcalmk-chip:hover { border-color: var(--gk-accent); }
+.gcalmk-chip[aria-pressed="true"] { border-color: var(--gk-text); box-shadow: 0 0 0 1px var(--gk-text); font-weight: 700; }
+.gcalmk-chip-selected .gcalmk-chip-label { white-space: pre; }
+.gcalmk-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
 
 /* Kopfzeile */
 .gcalmk-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }

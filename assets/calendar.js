@@ -33,15 +33,7 @@
 		if (ev.allDay) { return 'ganztägig'; }
 		return ev.startTime + (ev.endTime && ev.endTime !== ev.startTime ? '–' + ev.endTime : '') + ' Uhr';
 	}
-	// Feste Farbe je Tag (gleich für Tag-Schaltfläche und Zeitlinie am Termin).
-	function tagColor(tag) {
-		if (!tag) { return '#a83326'; }
-		var s = tag.toLowerCase(), h = 5381;
-		for (var i = 0; i < s.length; i++) { h = (Math.imul(h, 33) + s.charCodeAt(i)) >>> 0; }
-		var hue = (Math.imul(h, 2654435761) >>> 0) % 360;
-		return 'hsl(' + hue + ', 50%, 32%)';
-	}
-	function eventColor(ev) { return tagColor(ev.tags && ev.tags[0]); }
+	var DEFAULT_COLOR = '#a83326';
 	function dateRangeText(ev) {
 		return ev.startDate === ev.endDate ? longDate(ev.startDate) : longDate(ev.startDate) + ' bis ' + longDate(ev.endDate);
 	}
@@ -53,6 +45,7 @@
 		this.showTags = root.getAttribute('data-tags') !== '0';
 		this.tag = root.getAttribute('data-tag') || '';
 		this.tagsOpen = false;
+		this.colors = {};
 		this.query = '';
 		this.events = [];
 		this.tags = [];
@@ -143,6 +136,7 @@
 			})
 			.then(function (data) {
 				self.events = data.events || [];
+				self.colors = data.colors || {};
 				self.computeTags();
 				if (self.tag) {
 					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.
@@ -182,6 +176,14 @@
 		});
 	};
 
+	// Farbe eines Tags (in den Einstellungen änderbar); gleich für Punkt am Tag und Linie am Termin.
+	Calendar.prototype.colorOf = function (tag) {
+		return (tag && this.colors[tag]) || DEFAULT_COLOR;
+	};
+	Calendar.prototype.eventColor = function (ev) {
+		return this.colorOf(ev.tags && ev.tags[0]);
+	};
+
 	Calendar.prototype.setTag = function (value) {
 		this.tag = value;
 		this.tagsOpen = false; // nach der Auswahl wieder einklappen
@@ -202,10 +204,15 @@
 		}
 		this.tagWrap.hidden = false;
 
+		// Schaltfläche in neutralem Weiß; die Tag-Farbe zeigt nur ein Punkt.
 		var chip = function (label, color, selected) {
-			var b = el('button', 'gcalmk-chip', label);
+			var b = el('button', 'gcalmk-chip');
 			b.type = 'button';
-			b.style.setProperty('--chip', color);
+			var dot = el('span', 'gcalmk-dot');
+			dot.style.background = color;
+			dot.setAttribute('aria-hidden', 'true');
+			b.appendChild(dot);
+			b.appendChild(el('span', 'gcalmk-chip-label', label));
 			if (selected !== undefined) { b.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
 			return b;
 		};
@@ -222,7 +229,7 @@
 
 		// Gewählter Tag bleibt dauerhaft sichtbar; Klick darauf hebt den Filter auf.
 		if (this.tag) {
-			var sel = chip(this.tag + '  ×', tagColor(this.tag), true);
+			var sel = chip(this.tag + '  ×', this.colorOf(this.tag), true);
 			sel.classList.add('gcalmk-chip-selected');
 			sel.setAttribute('aria-label', 'Tag ' + this.tag + ' aktiv, Filter aufheben');
 			sel.addEventListener('click', function () { self.setTag(''); });
@@ -231,7 +238,7 @@
 
 		this.tagPanel.hidden = !this.tagsOpen;
 		this.tags.forEach(function (t) {
-			var b = chip(t, tagColor(t), self.tag === t);
+			var b = chip(t, self.colorOf(t), self.tag === t);
 			b.addEventListener('click', function () { self.setTag(t); });
 			self.tagPanel.appendChild(b);
 		});
@@ -353,7 +360,7 @@
 			lay.allDay.forEach(function (ev) {
 				var p = self.pill(ev, key);
 				p.classList.add('gcalmk-pill-allday');
-				p.style.borderLeftColor = eventColor(ev);
+				p.style.borderLeftColor = self.eventColor(ev);
 				cell.appendChild(p);
 			});
 			if (lay.timed.length) {
@@ -365,7 +372,7 @@
 					lay.segs[r].forEach(function (s) {
 						var seg = el('span', 'gcalmk-lane');
 						seg.style.left = (s.lane * LANE_W) + 'px';
-						seg.style.background = eventColor(s.ev); // Farbe des Tags
+						seg.style.background = self.eventColor(s.ev); // Farbe des Tags
 						if (s.first) { seg.classList.add('is-first'); }
 						if (s.end) { seg.classList.add('is-end'); }
 						item.appendChild(seg);
