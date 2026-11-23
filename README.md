@@ -25,7 +25,7 @@ Tags werden **manuell** gepflegt: *Einstellungen → Google-Kalender → Tags* l
 Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
 
 ## Wiederkehrende Termine
-Google liefert bei aufgelösten Serien die Serien-ID () mit. Solche Termine werden im Kalender mit dem Symbol ↻ gekennzeichnet.
+Google liefert bei aufgelösten Serien die Serien-ID (`recurringEventId`) mit. Solche Termine werden im Kalender mit dem Symbol ↻ gekennzeichnet.
 
 ## Heute
 Der heutige Tag ist im Raster durch Rahmen, Hintergrund und einen roten Balken mit „Heute“ hervorgehoben.
