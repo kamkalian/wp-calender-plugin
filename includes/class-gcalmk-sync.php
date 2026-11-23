@@ -10,7 +10,7 @@ class GCalMK_Sync {
 
 	const HOOK     = 'gcalmk_sync_event';
 	const SCHEDULE = 'gcalmk_10min';
-	const CACHE_V  = 5; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
+	const CACHE_V  = 6; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
 
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
@@ -205,7 +205,7 @@ class GCalMK_Sync {
 				'singleEvents' => 'true',
 				'orderBy'      => 'startTime',
 				'maxResults'   => 2500,
-				'fields'       => 'nextPageToken,items(id,status,summary,description,location,htmlLink,start,end)',
+				'fields'       => 'nextPageToken,items(id,status,summary,description,location,htmlLink,start,end,recurringEventId)',
 			);
 			if ( '' !== $token ) {
 				$params['pageToken'] = $token;
@@ -223,10 +223,9 @@ class GCalMK_Sync {
 			}
 		}
 
-		$events    = array();
-		$tag_label = array(); // klein geschrieben => Anzeigename (erste Schreibweise).
+		$events = array();
 		foreach ( $items as $item ) {
-			$ev = self::normalize( $item, $tz, $tag_label );
+			$ev = self::normalize( $item, $tz );
 			if ( $ev ) {
 				$events[] = $ev;
 			}
@@ -239,30 +238,13 @@ class GCalMK_Sync {
 			}
 		);
 
-		// Tags nach Häufigkeit (meiste Termine zuerst), bei Gleichstand alphabetisch.
-		$counts = array();
-		foreach ( $events as $ev ) {
-			foreach ( $ev['tags'] as $t ) {
-				$counts[ $t ] = isset( $counts[ $t ] ) ? $counts[ $t ] + 1 : 1;
-			}
-		}
-		$tags = array_keys( $counts );
-		usort(
-			$tags,
-			function ( $a, $b ) use ( $counts ) {
-				return $counts[ $b ] <=> $counts[ $a ] ? $counts[ $b ] <=> $counts[ $a ] : strnatcasecmp( $a, $b );
-			}
-		);
-
-		GCalMK_Colors::ensure( $tags ); // jedem Tag eine eigene Farbe zuweisen.
-
+		// Tags werden nicht hier, sondern erst bei der Auslieferung zugeordnet (siehe GCalMK_Tags), damit Änderungen sofort wirken.
 		update_option(
 			'gcalmk_cache',
 			array(
 				'v'      => self::CACHE_V,
 				'synced' => time(),
 				'events' => $events,
-				'tags'   => $tags,
 			),
 			false
 		);
@@ -282,7 +264,7 @@ class GCalMK_Sync {
 	/**
 	 * Macht aus einem Google-Termin einen schlanken Datensatz. Zeiten in der WordPress-Zeitzone.
 	 */
-	private static function normalize( $item, $tz, &$tag_label ) {
+	private static function normalize( $item, $tz ) {
 		if ( ! is_array( $item ) || ! isset( $item['start'], $item['end'] ) ) {
 			return null;
 		}
@@ -322,16 +304,7 @@ class GCalMK_Sync {
 		$title = isset( $item['summary'] ) ? (string) $item['summary'] : '';
 		$desc  = isset( $item['description'] ) ? (string) $item['description'] : '';
 
-		// Tag = erstes Wort des Titels (Buchstaben/Ziffern, ohne führende Satzzeichen).
 		$title = trim( preg_replace( '/\s+/u', ' ', $title ) );
-		$tags  = array();
-		if ( preg_match( '/^[^\p{L}\p{N}]*([\p{L}\p{N}][\p{L}\p{N}\'’]*)/u', $title, $m ) && mb_strlen( $m[1], 'UTF-8' ) >= 2 && preg_match( '/\p{L}/u', $m[1] ) ) {
-			$key = mb_strtolower( $m[1], 'UTF-8' );
-			if ( ! isset( $tag_label[ $key ] ) ) {
-				$tag_label[ $key ] = $m[1];
-			}
-			$tags[] = $tag_label[ $key ];
-		}
 		if ( '' === $title ) {
 			$title = '(ohne Titel)';
 		}
@@ -365,7 +338,8 @@ class GCalMK_Sync {
 			'location'    => isset( $item['location'] ) ? sanitize_text_field( $item['location'] ) : '',
 			'description' => $desc,
 			'link'        => isset( $item['htmlLink'] ) ? esc_url_raw( $item['htmlLink'] ) : '',
-			'tags'        => array_values( $tags ),
+			// Google liefert bei aufgelösten Serien die ID der Serie mit: so erkennen wir wiederkehrende Termine.
+			'recurring'   => ! empty( $item['recurringEventId'] ),
 		);
 	}
 }

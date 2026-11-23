@@ -34,6 +34,14 @@
 		return ev.startTime + (ev.endTime && ev.endTime !== ev.startTime ? '–' + ev.endTime : '') + ' Uhr';
 	}
 	var DEFAULT_COLOR = '#a83326';
+	// Symbol für wiederkehrende Termine (Information "recurringEventId" von Google).
+	function recIcon() {
+		var s = el('span', 'gcalmk-rec', '↻');
+		s.title = 'Wiederkehrender Termin';
+		s.setAttribute('role', 'img');
+		s.setAttribute('aria-label', 'Wiederkehrender Termin');
+		return s;
+	}
 	function dateRangeText(ev) {
 		return ev.startDate === ev.endDate ? longDate(ev.startDate) : longDate(ev.startDate) + ' bis ' + longDate(ev.endDate);
 	}
@@ -292,7 +300,9 @@
 			b.type = 'button';
 			b.appendChild(el('span', 'gcalmk-r-date', shortDate(ev.startDate)));
 			var main = el('span', 'gcalmk-r-main');
-			main.appendChild(el('span', 'gcalmk-r-title', ev.title));
+			var ttl = el('span', 'gcalmk-r-title', ev.title);
+			if (ev.recurring) { ttl.appendChild(document.createTextNode(' ')); ttl.appendChild(recIcon()); }
+			main.appendChild(ttl);
 			main.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
 			b.appendChild(main);
 			b.appendChild(el('span', 'gcalmk-r-chev', '›'));
@@ -353,6 +363,7 @@
 
 			var num = el('div', 'gcalmk-dnum');
 			num.appendChild(el('span', 'gcalmk-dshort', String(d)));
+			if (key === this.todayIso) { num.appendChild(el('span', 'gcalmk-todaybadge', 'Heute')); }
 			num.appendChild(el('span', 'gcalmk-dlong', longDate(key)));
 			cell.appendChild(num);
 
@@ -431,8 +442,12 @@
 		var self = this;
 		var b = el('button', 'gcalmk-pill');
 		b.type = 'button';
-		if (!ev.allDay && key === ev.startDate) {
-			b.appendChild(el('span', 'gcalmk-p-time', ev.startTime));
+		var showTime = !ev.allDay && key === ev.startDate;
+		if (showTime || ev.recurring) {
+			var meta = el('span', 'gcalmk-p-time');
+			if (showTime) { meta.appendChild(document.createTextNode(ev.startTime)); }
+			if (ev.recurring) { meta.appendChild(recIcon()); }
+			b.appendChild(meta);
 		}
 		b.appendChild(el('span', 'gcalmk-p-title', ev.title));
 		b.title = (ev.allDay ? '' : ev.startTime + ' ') + ev.title;
@@ -476,6 +491,7 @@
 		this.dialog(ev.title, function (box, done) {
 			box.appendChild(el('h4', 'gcalmk-d-title', ev.title));
 			box.appendChild(el('p', 'gcalmk-d-when', dateRangeText(ev) + (ev.allDay ? '' : ', ' + timeText(ev))));
+			if (ev.recurring) { box.appendChild(el('p', 'gcalmk-d-rec', '↻ Wiederkehrender Termin')); }
 			if (ev.location) { box.appendChild(el('p', 'gcalmk-d-where', '📍 ' + ev.location)); }
 			if (ev.description) {
 				var d = el('div', 'gcalmk-d-desc');

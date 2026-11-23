@@ -20,9 +20,15 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
 
 ## Tags
-Als Tag dient automatisch das **erste Wort des Termintitels** (z. B. „Jugendtraining Halle 2“ → `Jugendtraining`). Über dem Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Jeder Tag bekommt automatisch eine eigene Farbe (als Punkt am Tag und als Linie am Termin); die Farben lassen sich unter *Einstellungen → Google-Kalender → Tag-Farben* ändern. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
+Tags werden **manuell** gepflegt: *Einstellungen → Google-Kalender → Tags* legt Tags mit Farbe an, darunter steht die Liste aller Termine (eindeutig nach Titel, Wiederholungen zählen als einer) mit Suchfeld; jedem Eintrag wird ein Tag zugeordnet („Allen angezeigten zuweisen“ für viele auf einmal). Änderungen wirken sofort.
 
-Unter *Einstellungen → Google-Kalender → Tags ausblenden* lässt sich eine Liste (ein Wort pro Zeile) pflegen; diese Wörter werden nicht als Tag angezeigt, die Termine bleiben sichtbar.
+Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
+
+## Wiederkehrende Termine
+Google liefert bei aufgelösten Serien die Serien-ID () mit. Solche Termine werden im Kalender mit dem Symbol ↻ gekennzeichnet.
+
+## Heute
+Der heutige Tag ist im Raster durch Rahmen, Hintergrund und einen roten Balken mit „Heute“ hervorgehoben.
 
 ## Technik
 - Abruf per WP-Cron (`gcalmk_10min`), Ergebnis liegt in der Option `gcalmk_cache`; Besucher lösen nie einen Google-Abruf aus. Bei Fehlern bleibt der alte Cache bestehen.

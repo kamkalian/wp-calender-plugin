@@ -25,39 +25,14 @@ class GCalMK_Rest {
 	}
 
 	public static function events() {
-		$cache    = GCalMK_Sync::get_cache();
-		$settings = GCalMK_Settings::get();
-		$excluded = array();
-		foreach ( $settings['excluded_tags'] as $t ) {
-			$excluded[ mb_strtolower( (string) $t, 'UTF-8' ) ] = true;
-		}
+		$cache = GCalMK_Sync::get_cache();
 
-		$events = $cache['events'];
-		$tags   = $cache['tags'];
-		if ( $excluded ) {
-			$keep = function ( $t ) use ( $excluded ) {
-				return ! isset( $excluded[ mb_strtolower( (string) $t, 'UTF-8' ) ] );
-			};
-			foreach ( $events as $i => $ev ) {
-				$events[ $i ]['tags'] = array_values( array_filter( $ev['tags'], $keep ) );
-			}
-			$tags = array_values( array_filter( $tags, $keep ) );
-		}
-
-		// Farbe je Tag (Anzeigename => #rrggbb).
-		$map    = GCalMK_Colors::get();
-		$colors = array();
-		foreach ( $tags as $t ) {
-			$k = GCalMK_Colors::key( $t );
-			if ( isset( $map[ $k ] ) ) {
-				$colors[ $t ] = $map[ $k ];
-			}
-		}
+		// Tags kommen aus der Pflege in den Einstellungen (Termintitel => Tag), Farben je Tag-Name.
+		list( $events, $colors ) = GCalMK_Tags::apply( $cache['events'] );
 
 		$res = new WP_REST_Response(
 			array(
 				'synced' => (int) $cache['synced'],
-				'tags'   => $tags,
 				'colors' => (object) $colors,
 				'events' => $events,
 			)
