@@ -35,13 +35,26 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 .gcalmk button { font: inherit; cursor: pointer; }
 
 /* Tag-Filter */
-.gcalmk-tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
-.gcalmk-chip {
-	padding: 6px 16px; border: 1px solid var(--gk-border); border-radius: 999px;
-	background: #fff; color: var(--gk-text);
+.gcalmk-tags { margin: 0 0 14px; }
+.gcalmk-tags[hidden], .gcalmk-tagpanel[hidden] { display: none; }
+.gcalmk-taghead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gcalmk-tagtoggle {
+	padding: 6px 14px; border: 1px solid var(--gk-border); border-radius: 4px;
+	background: #fff; color: var(--gk-text); font-weight: 600;
 }
-.gcalmk-chip:hover { border-color: var(--gk-accent); }
-.gcalmk-chip[aria-pressed="true"] { background: var(--gk-accent); border-color: var(--gk-accent); color: #fff; }
+.gcalmk-tagtoggle:hover { border-color: var(--gk-accent); }
+.gcalmk-tagpanel {
+	display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 12px;
+	border: 1px solid var(--gk-border); border-radius: 4px; background: #fff;
+}
+/* Farbe je Tag = Farbe der Linie am Termin (per --chip aus dem Skript) */
+.gcalmk-chip {
+	padding: 5px 14px; border: 2px solid var(--chip, var(--gk-accent)); border-radius: 999px;
+	background: var(--chip, var(--gk-accent)); color: #fff; font-size: .95em;
+}
+.gcalmk-chip:hover { filter: brightness(1.15); }
+.gcalmk-chip[aria-pressed="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--chip, var(--gk-accent)); font-weight: 700; }
+.gcalmk-chip-selected { white-space: pre; }
 
 /* Kopfzeile */
 .gcalmk-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -90,7 +103,6 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 }
 .gcalmk-pill:hover { background: #fffaf0; box-shadow: 0 0 0 1px var(--gk-accent); }
 .gcalmk-pill-allday { border-left: 4px solid var(--gk-accent); }
-.gcalmk-pill-allday.gcalmk-multi { border-left-color: var(--gk-secondary); }
 .gcalmk-p-time { display: block; font-size: .72em; line-height: 1.2; color: var(--gk-secondary); }
 .gcalmk-p-title {
 	display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
@@ -107,8 +119,6 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 .gcalmk-item:last-child { padding-bottom: 0; }
 .gcalmk-item .gcalmk-pill { width: 100%; }
 .gcalmk-lane { position: absolute; top: 0; bottom: 0; width: 4px; background: var(--gk-accent); }
-.gcalmk-lane-1 { background: var(--gk-secondary); }
-.gcalmk-lane-2 { background: #c9892b; }
 .gcalmk-lane.is-first { border-radius: 3px 3px 0 0; }
 .gcalmk-lane.is-end { bottom: 4px; border-radius: 0 0 3px 3px; }
 .gcalmk-lane.is-first.is-end { border-radius: 3px; }

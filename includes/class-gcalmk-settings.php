@@ -33,8 +33,12 @@ class GCalMK_Settings {
 				'calendar_id'    => '',
 				'months_back'    => 3,
 				'months_forward' => 12,
+				'excluded_tags'  => array(),
 			)
 		);
+		if ( ! is_array( $s['excluded_tags'] ) ) {
+			$s['excluded_tags'] = array();
+		}
 		if ( defined( 'GCALMK_API_KEY' ) && '' !== GCALMK_API_KEY ) {
 			$s['api_key'] = (string) GCALMK_API_KEY;
 		}
@@ -75,7 +79,21 @@ class GCalMK_Settings {
 
 		$cal = isset( $in['calendar_id'] ) ? trim( sanitize_text_field( $in['calendar_id'] ) ) : '';
 
+		// Ausschlussliste: ein Tag pro Zeile (oder Komma getrennt); WordPress ruft die Bereinigung teils zweimal auf, daher auch Arrays.
+		$raw_ex = isset( $in['excluded_tags'] ) ? $in['excluded_tags'] : array();
+		if ( ! is_array( $raw_ex ) ) {
+			$raw_ex = preg_split( '/[\r\n,]+/', (string) $raw_ex );
+		}
+		$excluded = array();
+		foreach ( $raw_ex as $t ) {
+			$t = trim( sanitize_text_field( (string) $t ) );
+			if ( '' !== $t ) {
+				$excluded[ mb_strtolower( $t, 'UTF-8' ) ] = $t;
+			}
+		}
+
 		return array(
+			'excluded_tags'  => array_values( $excluded ),
 			'api_key'        => $key,
 			'calendar_id'    => $cal,
 			'months_back'    => max( 0, min( 24, (int) ( isset( $in['months_back'] ) ? $in['months_back'] : 3 ) ) ),
@@ -179,6 +197,13 @@ class GCalMK_Settings {
 						<td>
 							<input type="number" id="gcalmk_back" min="0" max="24" name="<?php echo esc_attr( self::OPTION ); ?>[months_back]" value="<?php echo esc_attr( $s['months_back'] ); ?>" class="small-text"> Monate zurück,
 							<input type="number" min="1" max="36" name="<?php echo esc_attr( self::OPTION ); ?>[months_forward]" value="<?php echo esc_attr( $s['months_forward'] ); ?>" class="small-text"> Monate voraus
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="gcalmk_excl">Tags ausblenden</label></th>
+						<td>
+							<textarea id="gcalmk_excl" name="<?php echo esc_attr( self::OPTION ); ?>[excluded_tags]" rows="8" class="large-text code" placeholder="Das&#10;Tag&#10;Aktuelle"><?php echo esc_textarea( implode( "\n", $s['excluded_tags'] ) ); ?></textarea>
+							<p class="description">Ein Tag pro Zeile (Groß-/Kleinschreibung egal). Diese Wörter werden nicht als Tag angezeigt, die Termine selbst bleiben sichtbar. Die Liste wirkt sofort, ohne neuen Abruf.</p>
 						</td>
 					</tr>
 				</table>

@@ -25,15 +25,33 @@ class GCalMK_Rest {
 	}
 
 	public static function events() {
-		$cache = GCalMK_Sync::get_cache();
-		$res   = new WP_REST_Response(
+		$cache    = GCalMK_Sync::get_cache();
+		$settings = GCalMK_Settings::get();
+		$excluded = array();
+		foreach ( $settings['excluded_tags'] as $t ) {
+			$excluded[ mb_strtolower( (string) $t, 'UTF-8' ) ] = true;
+		}
+
+		$events = $cache['events'];
+		$tags   = $cache['tags'];
+		if ( $excluded ) {
+			$keep = function ( $t ) use ( $excluded ) {
+				return ! isset( $excluded[ mb_strtolower( (string) $t, 'UTF-8' ) ] );
+			};
+			foreach ( $events as $i => $ev ) {
+				$events[ $i ]['tags'] = array_values( array_filter( $ev['tags'], $keep ) );
+			}
+			$tags = array_values( array_filter( $tags, $keep ) );
+		}
+
+		$res = new WP_REST_Response(
 			array(
 				'synced' => (int) $cache['synced'],
-				'tags'   => $cache['tags'],
-				'events' => $cache['events'],
+				'tags'   => $tags,
+				'events' => $events,
 			)
 		);
-		$res->header( 'Cache-Control', 'public, max-age=300' );
+		$res->header( 'Cache-Control', 'public, max-age=60' );
 		return $res;
 	}
 }

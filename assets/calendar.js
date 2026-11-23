@@ -33,6 +33,15 @@
 		if (ev.allDay) { return 'ganztägig'; }
 		return ev.startTime + (ev.endTime && ev.endTime !== ev.startTime ? '–' + ev.endTime : '') + ' Uhr';
 	}
+	// Feste Farbe je Tag (gleich für Tag-Schaltfläche und Zeitlinie am Termin).
+	function tagColor(tag) {
+		if (!tag) { return '#a83326'; }
+		var s = tag.toLowerCase(), h = 5381;
+		for (var i = 0; i < s.length; i++) { h = (Math.imul(h, 33) + s.charCodeAt(i)) >>> 0; }
+		var hue = (Math.imul(h, 2654435761) >>> 0) % 360;
+		return 'hsl(' + hue + ', 50%, 32%)';
+	}
+	function eventColor(ev) { return tagColor(ev.tags && ev.tags[0]); }
 	function dateRangeText(ev) {
 		return ev.startDate === ev.endDate ? longDate(ev.startDate) : longDate(ev.startDate) + ' bis ' + longDate(ev.endDate);
 	}
@@ -43,6 +52,7 @@
 		this.showSearch = root.getAttribute('data-search') !== '0';
 		this.showTags = root.getAttribute('data-tags') !== '0';
 		this.tag = root.getAttribute('data-tag') || '';
+		this.tagsOpen = false;
 		this.query = '';
 		this.events = [];
 		this.tags = [];
@@ -59,10 +69,17 @@
 		this.root.textContent = '';
 		this.root.classList.add('gcalmk-ready');
 
-		this.tagBar = el('div', 'gcalmk-tags');
-		this.tagBar.setAttribute('role', 'group');
-		this.tagBar.setAttribute('aria-label', 'Nach Tag filtern');
-		if (this.showTags) { this.root.appendChild(this.tagBar); }
+		// Tag-Bereich: Kopfzeile (Auf-/Zuklappen + gewählter Tag) und aufklappbare Liste.
+		this.tagWrap = el('div', 'gcalmk-tags');
+		this.tagHead = el('div', 'gcalmk-taghead');
+		this.tagPanel = el('div', 'gcalmk-tagpanel');
+		this.tagPanel.id = 'gcalmk-tagpanel-' + Math.random().toString(36).slice(2, 8);
+		this.tagPanel.setAttribute('role', 'group');
+		this.tagPanel.setAttribute('aria-label', 'Nach Tag filtern');
+		this.tagPanel.hidden = true;
+		this.tagWrap.appendChild(this.tagHead);
+		this.tagWrap.appendChild(this.tagPanel);
+		if (this.showTags) { this.root.appendChild(this.tagWrap); }
 
 		var top = el('div', 'gcalmk-top');
 		this.nav = el('div', 'gcalmk-nav');
@@ -126,11 +143,14 @@
 			})
 			.then(function (data) {
 				self.events = data.events || [];
-				self.tags = data.tags || [];
+				self.computeTags();
 				if (self.tag) {
+					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.
 					var low = self.tag.toLowerCase();
 					var found = '';
-					self.tags.forEach(function (t) { if (t.toLowerCase() === low) { found = t; } });
+					self.events.forEach(function (ev) {
+						ev.tags.forEach(function (t) { if (t.toLowerCase() === low) { found = t; } });
+					});
 					self.tag = found;
 				}
 				self.jumpIfSingle();
@@ -150,24 +170,71 @@
 		this.render();
 	};
 
+	// Nur Tags mit mindestens einem Termin ab heute, nach Häufigkeit (künftige Termine) sortiert.
+	Calendar.prototype.computeTags = function () {
+		var counts = {}, today = this.todayIso;
+		this.events.forEach(function (ev) {
+			if (ev.endDate < today) { return; }
+			ev.tags.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; });
+		});
+		this.tags = Object.keys(counts).sort(function (a, b) {
+			return (counts[b] - counts[a]) || a.localeCompare(b, 'de');
+		});
+	};
+
+	Calendar.prototype.setTag = function (value) {
+		this.tag = value;
+		this.tagsOpen = false; // nach der Auswahl wieder einklappen
+		this.jumpIfSingle();
+		this.renderTags();
+		this.render();
+		var t = this.tagHead.querySelector('.gcalmk-tagtoggle');
+		if (t) { t.focus(); }
+	};
+
 	Calendar.prototype.renderTags = function () {
 		var self = this;
-		this.tagBar.textContent = '';
-		if (!this.tags.length) { return; }
-		var make = function (label, value) {
+		this.tagHead.textContent = '';
+		this.tagPanel.textContent = '';
+		if (!this.tags.length && !this.tag) {
+			this.tagWrap.hidden = true;
+			return;
+		}
+		this.tagWrap.hidden = false;
+
+		var chip = function (label, color, selected) {
 			var b = el('button', 'gcalmk-chip', label);
 			b.type = 'button';
-			b.setAttribute('aria-pressed', self.tag === value ? 'true' : 'false');
-			b.addEventListener('click', function () {
-				self.tag = value;
-				self.jumpIfSingle();
-				self.renderTags();
-				self.render();
-			});
-			self.tagBar.appendChild(b);
+			b.style.setProperty('--chip', color);
+			if (selected !== undefined) { b.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
+			return b;
 		};
-		make('Alle', '');
-		this.tags.forEach(function (t) { make(t, t); });
+
+		var toggle = el('button', 'gcalmk-tagtoggle', 'Tags (' + this.tags.length + ') ' + (this.tagsOpen ? '▴' : '▾'));
+		toggle.type = 'button';
+		toggle.setAttribute('aria-expanded', this.tagsOpen ? 'true' : 'false');
+		toggle.setAttribute('aria-controls', this.tagPanel.id);
+		toggle.addEventListener('click', function () {
+			self.tagsOpen = !self.tagsOpen;
+			self.renderTags();
+		});
+		this.tagHead.appendChild(toggle);
+
+		// Gewählter Tag bleibt dauerhaft sichtbar; Klick darauf hebt den Filter auf.
+		if (this.tag) {
+			var sel = chip(this.tag + '  ×', tagColor(this.tag), true);
+			sel.classList.add('gcalmk-chip-selected');
+			sel.setAttribute('aria-label', 'Tag ' + this.tag + ' aktiv, Filter aufheben');
+			sel.addEventListener('click', function () { self.setTag(''); });
+			this.tagHead.appendChild(sel);
+		}
+
+		this.tagPanel.hidden = !this.tagsOpen;
+		this.tags.forEach(function (t) {
+			var b = chip(t, tagColor(t), self.tag === t);
+			b.addEventListener('click', function () { self.setTag(t); });
+			self.tagPanel.appendChild(b);
+		});
 	};
 
 	// Hat der gewählte Tag nur einen einzigen Termin, springt der Kalender in dessen Monat.
@@ -286,6 +353,7 @@
 			lay.allDay.forEach(function (ev) {
 				var p = self.pill(ev, key);
 				p.classList.add('gcalmk-pill-allday');
+				p.style.borderLeftColor = eventColor(ev);
 				cell.appendChild(p);
 			});
 			if (lay.timed.length) {
@@ -295,8 +363,9 @@
 					var item = el('div', 'gcalmk-item');
 					item.style.paddingLeft = (lay.laneCount * LANE_W) + 'px';
 					lay.segs[r].forEach(function (s) {
-						var seg = el('span', 'gcalmk-lane gcalmk-lane-' + (s.lane % 3));
+						var seg = el('span', 'gcalmk-lane');
 						seg.style.left = (s.lane * LANE_W) + 'px';
+						seg.style.background = eventColor(s.ev); // Farbe des Tags
 						if (s.first) { seg.classList.add('is-first'); }
 						if (s.end) { seg.classList.add('is-end'); }
 						item.appendChild(seg);
@@ -345,7 +414,7 @@
 		for (var r = 0; r < n; r++) {
 			segs[r] = [];
 			for (i = 0; i <= r; i++) {
-				if (last[i] >= r) { segs[r].push({ lane: lane[i], first: i === r, end: last[i] === r }); }
+				if (last[i] >= r) { segs[r].push({ lane: lane[i], first: i === r, end: last[i] === r, ev: timed[i] }); }
 			}
 		}
 		return { allDay: allDay, timed: timed, segs: segs, laneCount: Math.max(1, laneEnd.length) };
