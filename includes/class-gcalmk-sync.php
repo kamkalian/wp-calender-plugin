@@ -10,7 +10,7 @@ class GCalMK_Sync {
 
 	const HOOK     = 'gcalmk_sync_event';
 	const SCHEDULE = 'gcalmk_10min';
-	const CACHE_V  = 3; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
+	const CACHE_V  = 4; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
 
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
@@ -239,8 +239,20 @@ class GCalMK_Sync {
 			}
 		);
 
-		$tags = array_values( $tag_label );
-		usort( $tags, 'strnatcasecmp' );
+		// Tags nach Häufigkeit (meiste Termine zuerst), bei Gleichstand alphabetisch.
+		$counts = array();
+		foreach ( $events as $ev ) {
+			foreach ( $ev['tags'] as $t ) {
+				$counts[ $t ] = isset( $counts[ $t ] ) ? $counts[ $t ] + 1 : 1;
+			}
+		}
+		$tags = array_keys( $counts );
+		usort(
+			$tags,
+			function ( $a, $b ) use ( $counts ) {
+				return $counts[ $b ] <=> $counts[ $a ] ? $counts[ $b ] <=> $counts[ $a ] : strnatcasecmp( $a, $b );
+			}
+		);
 
 		update_option(
 			'gcalmk_cache',

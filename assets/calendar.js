@@ -4,7 +4,6 @@
 	var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 	var WDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 	var WDAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-	var MAX_ROWS = 5;   // Termine je Tag im Raster, Rest unter "weitere"
 	var LANE_W = 8;     // Breite einer Zeitlinie in px
 
 	function el(tag, cls, text) {
@@ -134,6 +133,7 @@
 					self.tags.forEach(function (t) { if (t.toLowerCase() === low) { found = t; } });
 					self.tag = found;
 				}
+				self.jumpIfSingle();
 				self.renderTags();
 				self.render();
 			})
@@ -160,6 +160,7 @@
 			b.setAttribute('aria-pressed', self.tag === value ? 'true' : 'false');
 			b.addEventListener('click', function () {
 				self.tag = value;
+				self.jumpIfSingle();
 				self.renderTags();
 				self.render();
 			});
@@ -167,6 +168,19 @@
 		};
 		make('Alle', '');
 		this.tags.forEach(function (t) { make(t, t); });
+	};
+
+	// Hat der gewählte Tag nur einen einzigen Termin, springt der Kalender in dessen Monat.
+	Calendar.prototype.jumpIfSingle = function () {
+		if (!this.tag) { return; }
+		var list = this.filtered();
+		if (list.length === 1) {
+			var p = parseIso(list[0].startDate);
+			this.year = p.y;
+			this.month = p.m;
+			this.query = '';
+			if (this.input) { this.input.value = ''; }
+		}
 	};
 
 	Calendar.prototype.filtered = function () {
@@ -269,17 +283,15 @@
 			cell.appendChild(num);
 
 			var lay = self.dayLayout(evs, key);
-			var budget = MAX_ROWS;
-			lay.allDay.slice(0, budget).forEach(function (ev) {
+			lay.allDay.forEach(function (ev) {
 				var p = self.pill(ev, key);
 				p.classList.add('gcalmk-pill-allday');
 				cell.appendChild(p);
 			});
-			budget -= Math.min(budget, lay.allDay.length);
-			if (budget > 0 && lay.timed.length) {
-				// Termine untereinander; farbige Linien laufen über alle Termine, die in ihre Zeit fallen.
+			if (lay.timed.length) {
+				// Alle Termine untereinander; farbige Linien laufen über alle Termine, die in ihre Zeit fallen.
 				var stack = el('div', 'gcalmk-stack');
-				lay.timed.slice(0, budget).forEach(function (ev, r) {
+				lay.timed.forEach(function (ev, r) {
 					var item = el('div', 'gcalmk-item');
 					item.style.paddingLeft = (lay.laneCount * LANE_W) + 'px';
 					lay.segs[r].forEach(function (s) {
@@ -293,15 +305,6 @@
 					stack.appendChild(item);
 				});
 				cell.appendChild(stack);
-			}
-			var hidden = lay.allDay.length + lay.timed.length - Math.min(MAX_ROWS, lay.allDay.length + lay.timed.length);
-			if (hidden > 0) {
-				var more = el('button', 'gcalmk-more', '+ ' + hidden + ' weitere – alle anzeigen');
-				more.type = 'button';
-				(function (k, e) {
-					more.addEventListener('click', function () { self.openDay(k, e); });
-				})(key, evs);
-				cell.appendChild(more);
 			}
 			grid.appendChild(cell);
 		}
@@ -390,30 +393,6 @@
 		document.body.appendChild(overlay);
 		close.focus();
 		return done;
-	};
-
-	Calendar.prototype.openDay = function (key, evs) {
-		var self = this;
-		this.dialog(longDate(key), function (box, done) {
-			box.appendChild(el('h4', 'gcalmk-d-title', longDate(key)));
-			box.appendChild(el('p', 'gcalmk-d-hint', 'Termin anklicken, um die Details anzuzeigen.'));
-			var ul = el('ul', 'gcalmk-results');
-			evs.forEach(function (ev) {
-				var li = el('li');
-				var b = el('button', 'gcalmk-result');
-				b.type = 'button';
-				var main = el('span', 'gcalmk-r-main');
-				main.appendChild(el('span', 'gcalmk-r-title', ev.title));
-				main.appendChild(el('span', 'gcalmk-r-time', timeText(ev)));
-				b.appendChild(main);
-				b.appendChild(el('span', 'gcalmk-r-chev', '›'));
-				b.setAttribute('aria-label', ev.title + ', Details anzeigen');
-				b.addEventListener('click', function () { done(); self.openEvent(ev, false); });
-				li.appendChild(b);
-				ul.appendChild(li);
-			});
-			box.appendChild(ul);
-		});
 	};
 
 	Calendar.prototype.openEvent = function (ev, fromSearch) {
