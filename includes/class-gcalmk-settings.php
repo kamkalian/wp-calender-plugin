@@ -33,28 +33,16 @@ class GCalMK_Settings {
 				'calendar_id'    => '',
 				'months_back'    => 3,
 				'months_forward' => 12,
-				'print_groups'   => self::default_groups(),
+				'print_areas'    => GCalMK_Tags::default_areas(),
 			)
 		);
-		if ( ! is_array( $s['print_groups'] ) ) {
-			$s['print_groups'] = self::default_groups();
+		if ( ! is_array( $s['print_areas'] ) ) {
+			$s['print_areas'] = GCalMK_Tags::default_areas();
 		}
 		if ( defined( 'GCALMK_API_KEY' ) && '' !== GCALMK_API_KEY ) {
 			$s['api_key'] = (string) GCALMK_API_KEY;
 		}
 		return $s;
-	}
-
-	/** Gruppen des Ausdrucks (Überschriften, in dieser Reihenfolge). */
-	public static function default_groups() {
-		return array(
-			'Treffen und Angebote',
-			'Selbsthilfegruppen und Beratungen',
-			'Unsere Jugendangebote',
-			'Sonstige Veranstaltungen',
-			'Vorschau Tagesfahrten / Wanderungen / Urlaub',
-			'Geschäftsstelle',
-		);
 	}
 
 	public static function action_links( $links ) {
@@ -99,24 +87,24 @@ class GCalMK_Settings {
 
 		$cal = isset( $in['calendar_id'] ) ? trim( sanitize_text_field( $in['calendar_id'] ) ) : '';
 
-		// Gruppen des Ausdrucks: ein Name pro Zeile (WordPress ruft die Bereinigung teils zweimal auf, daher auch Arrays).
-		if ( isset( $in['print_groups'] ) ) {
-			$raw_g = is_array( $in['print_groups'] ) ? $in['print_groups'] : preg_split( '/\r\n|\r|\n/', (string) $in['print_groups'] );
-		} elseif ( isset( $old['print_groups'] ) && is_array( $old['print_groups'] ) ) {
-			$raw_g = $old['print_groups'];
+		// Bereiche des Ausdrucks: ein Name pro Zeile (WordPress ruft die Bereinigung teils zweimal auf, daher auch Arrays).
+		if ( isset( $in['print_areas'] ) ) {
+			$raw_a = is_array( $in['print_areas'] ) ? $in['print_areas'] : preg_split( '/\r\n|\r|\n/', (string) $in['print_areas'] );
+		} elseif ( isset( $old['print_areas'] ) && is_array( $old['print_areas'] ) ) {
+			$raw_a = $old['print_areas'];
 		} else {
-			$raw_g = self::default_groups();
+			$raw_a = GCalMK_Tags::default_areas();
 		}
-		$groups = array();
-		foreach ( $raw_g as $g ) {
-			$g = mb_substr( trim( sanitize_text_field( (string) $g ) ), 0, 80, 'UTF-8' );
-			if ( '' !== $g && ! isset( $groups[ mb_strtolower( $g, 'UTF-8' ) ] ) ) {
-				$groups[ mb_strtolower( $g, 'UTF-8' ) ] = $g;
+		$areas = array();
+		foreach ( $raw_a as $a ) {
+			$a = mb_substr( trim( sanitize_text_field( (string) $a ) ), 0, 80, 'UTF-8' );
+			if ( '' !== $a && ! isset( $areas[ mb_strtolower( $a, 'UTF-8' ) ] ) ) {
+				$areas[ mb_strtolower( $a, 'UTF-8' ) ] = $a;
 			}
 		}
 
 		return array(
-			'print_groups'   => array_slice( array_values( $groups ), 0, 20 ),
+			'print_areas'    => array_slice( array_values( $areas ), 0, 20 ),
 			'api_key'        => $key,
 			'calendar_id'    => $cal,
 			'months_back'    => max( 0, min( 24, (int) ( isset( $in['months_back'] ) ? $in['months_back'] : 3 ) ) ),
@@ -170,16 +158,70 @@ class GCalMK_Settings {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
-		$s       = self::get();
-		$raw     = get_option( self::OPTION, array() );
-		$has_key = ! empty( $raw['api_key'] );
+		$s        = self::get();
+		$raw      = get_option( self::OPTION, array() );
+		$has_key  = ! empty( $raw['api_key'] );
 		$by_const = defined( 'GCALMK_API_KEY' ) && '' !== GCALMK_API_KEY;
-		$status  = GCalMK_Sync::get_status();
-		$cache   = GCalMK_Sync::get_cache();
-		$next    = wp_next_scheduled( GCalMK_Sync::HOOK );
-		$notice  = get_transient( self::notice_key() );
+		$status   = GCalMK_Sync::get_status();
+		$cache    = GCalMK_Sync::get_cache();
+		$next     = wp_next_scheduled( GCalMK_Sync::HOOK );
+		$notice   = get_transient( self::notice_key() );
 		if ( $notice ) {
 			delete_transient( self::notice_key() );
+		}
+
+		// Tags: gespeicherte Einstellungen plus alle in den Terminen gefundenen (noch nicht eingestellten) Tags.
+		$cfg      = GCalMK_Tags::config();
+		$found    = GCalMK_Tags::found( $cache['events'] );
+		$palette  = GCalMK_Tags::palette();
+		$o_tag    = GCalMK_Tags::OPT;
+		$rows     = array();
+		foreach ( $cfg as $n => $c ) {
+			$rows[ $n ] = array(
+				'name'  => $c['name'],
+				'color' => $c['color'],
+				'area'  => isset( $c['area'] ) ? $c['area'] : '',
+				'count' => isset( $found[ $n ] ) ? $found[ $n ]['count'] : 0,
+				'new'   => false,
+			);
+		}
+		foreach ( $found as $n => $f ) {
+			if ( ! isset( $rows[ $n ] ) ) {
+				$rows[ $n ] = array(
+					'name'  => $f['name'],
+					'color' => GCalMK_Tags::fallback_color( $n ),
+					'area'  => '',
+					'count' => $f['count'],
+					'new'   => true,
+				);
+			}
+		}
+		uasort(
+			$rows,
+			function ( $a, $b ) {
+				return ( $b['count'] <=> $a['count'] ) ? ( $b['count'] <=> $a['count'] ) : strnatcasecmp( $a['name'], $b['name'] );
+			}
+		);
+		$color_options = function ( $selected ) use ( $palette ) {
+			$html = '';
+			foreach ( $palette as $hex => $name ) {
+				$html .= '<option value="' . esc_attr( $hex ) . '" style="color:' . esc_attr( $hex ) . '"' . selected( $selected, $hex, false ) . '>■ ' . esc_html( $name ) . '</option>';
+			}
+			return $html;
+		};
+		$area_options  = function ( $selected ) use ( $s ) {
+			$html = '<option value="">– kein Bereich –</option>';
+			$sel  = GCalMK_Tags::norm( $selected );
+			foreach ( $s['print_areas'] as $a ) {
+				$html .= '<option value="' . esc_attr( $a ) . '"' . selected( $sel, GCalMK_Tags::norm( $a ), false ) . '>' . esc_html( $a ) . '</option>';
+			}
+			return $html;
+		};
+		$with_tag = 0;
+		foreach ( $cache['events'] as $ev ) {
+			if ( ! empty( $ev['tags'] ) ) {
+				$with_tag++;
+			}
 		}
 		?>
 		<div class="wrap">
@@ -222,176 +264,75 @@ class GCalMK_Settings {
 							<input type="number" min="1" max="36" name="<?php echo esc_attr( self::OPTION ); ?>[months_forward]" value="<?php echo esc_attr( $s['months_forward'] ); ?>" class="small-text"> Monate voraus
 						</td>
 					</tr>
-				<tr>
-						<th scope="row"><label for="gcalmk_groups">Gruppen im Ausdruck</label></th>
+					<tr>
+						<th scope="row"><label for="gcalmk_areas">Bereiche im Ausdruck</label></th>
 						<td>
-							<textarea id="gcalmk_groups" name="<?php echo esc_attr( self::OPTION ); ?>[print_groups]" rows="7" class="large-text"><?php echo esc_textarea( implode( "\n", $s['print_groups'] ) ); ?></textarea>
-							<p class="description">Überschriften des Ausdrucks, ein Name pro Zeile, in dieser Reihenfolge. Jeder Termin kommt in eine Gruppe: entweder per Auswahl unten in der Tabelle oder automatisch über eine Zeile <code>Gruppe: Name</code> in der Beschreibung des Google-Termins (hat Vorrang). Nicht zugeordnete wiederkehrende Termine landen in der ersten Gruppe, nicht zugeordnete Einzeltermine unter „Sonstige Veranstaltungen“.</p>
+							<textarea id="gcalmk_areas" name="<?php echo esc_attr( self::OPTION ); ?>[print_areas]" rows="6" class="large-text"><?php echo esc_textarea( implode( "\n", $s['print_areas'] ) ); ?></textarea>
+							<p class="description">Überschriften des Ausdrucks, ein Name pro Zeile, in dieser Reihenfolge. Welche Termine in welchen Bereich kommen, steuern die Tags (siehe unten).</p>
 						</td>
 					</tr>
 				</table>
-				<?php
-				$tdata   = GCalMK_Tags::data();
-				$uniq    = GCalMK_Tags::unique_titles( $cache['events'] );
-				$tcolors = GCalMK_Tags::ensure_colors( $cache['events'] ); // Tag => Farbe (fehlende werden automatisch vergeben).
-				$palette = GCalMK_Tags::palette();
-				$o_tag   = GCalMK_Tags::OPT;
-				$tag_of  = array();
-				$tagged  = 0;
-				foreach ( $uniq as $k => $u ) {
-					$tag_of[ $k ] = GCalMK_Tags::effective_tag( $u['title'], $k, $tdata );
-					if ( '' !== GCalMK_Tags::norm( $tag_of[ $k ] ) ) {
-						$tagged++;
-					}
-				}
-				$color_options = function ( $selected ) use ( $palette ) {
-					$html = '';
-					foreach ( $palette as $hex => $name ) {
-						$html .= '<option value="' . esc_attr( $hex ) . '" style="color:' . esc_attr( $hex ) . '"' . selected( $selected, $hex, false ) . '>■ ' . esc_html( $name ) . '</option>';
-					}
-					return $html;
-				};
-				?>
 
-				<h2>Termine und Tags</h2>
-				<?php if ( ! $uniq ) : ?>
-					<p class="description">Sobald Termine abgerufen sind, erscheinen sie hier.</p>
-				<?php else : ?>
-					<p class="description">Jeder Termin (Wiederholungen zählen als einer) hat automatisch seinen Titel als Tag. Schreibe in das Feld einen anderen Tag, um Termine zu gruppieren (gleiche Tags werden im Kalender zusammengefasst), oder lösche den Tag. Die Farbe wählst du im Dropdown; gleiche Tags haben dieselbe Farbe. Änderungen wirken nach dem Speichern sofort.</p>
-					<p>
-						<input type="search" id="gcalmk-filter" class="regular-text" placeholder="Termine suchen …" aria-label="Termine suchen">
-						<label style="margin-left:12px"><input type="checkbox" id="gcalmk-onlyuntagged"> nur Termine ohne Tag</label>
-						<span id="gcalmk-visible" style="margin-left:12px;color:#646970"></span>
-					</p>
-					<p>
-						<strong>Für alle angezeigten Termine:</strong>
-						<input type="text" id="gcalmk-bulktag" class="regular-text" placeholder="Tag eintragen" aria-label="Tag für alle angezeigten Termine">
-						<select id="gcalmk-bulkcolor" aria-label="Farbe für alle angezeigten Termine"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
-						<button type="button" class="button" id="gcalmk-bulkapply">Setzen</button>
-						<button type="button" class="button" id="gcalmk-bulkdelete">Tags löschen</button>
-						<span style="margin-left:12px">Ausdruck:</span>
-						<button type="button" class="button" id="gcalmk-bulknoprint">nicht drucken</button>
-						<button type="button" class="button" id="gcalmk-bulkprint">wieder drucken</button>
-						<span style="margin-left:12px">Gruppe:</span>
-						<select id="gcalmk-bulkgroup" aria-label="Gruppe für alle angezeigten Termine">
-							<option value="">(automatisch)</option>
-							<?php foreach ( $s['print_groups'] as $gn ) : ?>
-								<option value="<?php echo esc_attr( $gn ); ?>"><?php echo esc_html( $gn ); ?></option>
-							<?php endforeach; ?>
-						</select>
-						<button type="button" class="button" id="gcalmk-bulkgroupset">setzen</button>
-					</p>
-					<div style="max-height:560px;overflow:auto;border:1px solid #c3c4c7;background:#fff;max-width:1000px">
-						<table class="widefat striped" id="gcalmk-events" style="border:0">
-							<thead><tr><th>Termin</th><th style="width:70px">Anzahl</th><th style="width:480px">Tag</th><th style="width:230px">Gruppe</th><th style="width:110px">Nicht drucken</th></tr></thead>
-							<tbody>
-							<?php foreach ( $uniq as $k => $u ) : ?>
-								<?php
-								$tg  = $tag_of[ $k ];
-								$tn  = GCalMK_Tags::norm( $tg );
-								$hex = ( '' !== $tn && isset( $tcolors[ $tn ] ) ) ? $tcolors[ $tn ] : '#c62828';
-								?>
-								<tr data-title="<?php echo esc_attr( mb_strtolower( $u['title'], 'UTF-8' ) ); ?>">
-									<td><?php echo esc_html( $u['title'] ); ?></td>
-									<td><?php echo (int) $u['count']; ?></td>
-									<td style="white-space:nowrap">
-										<input type="text" class="gcalmk-tag" style="width:230px" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][t]" value="<?php echo esc_attr( $tg ); ?>" aria-label="Tag für <?php echo esc_attr( $u['title'] ); ?>">
-										<button type="button" class="button gcalmk-del" aria-label="Tag löschen">Löschen</button>
-										<select class="gcalmk-col" style="color:<?php echo esc_attr( $hex ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][c]" aria-label="Farbe"><?php echo $color_options( $hex ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
-									</td>
-								<td>
-										<select class="gcalmk-grp" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][g]" aria-label="Gruppe im Ausdruck">
-											<option value="">(automatisch)</option>
-											<?php foreach ( $s['print_groups'] as $gn ) : ?>
-												<option value="<?php echo esc_attr( $gn ); ?>"<?php selected( isset( $tdata['groups'][ $k ] ) ? $tdata['groups'][ $k ] : '', $gn ); ?>><?php echo esc_html( $gn ); ?></option>
-											<?php endforeach; ?>
-										</select>
-									</td>
-									<td style="text-align:center">
-										<input type="checkbox" class="gcalmk-np" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][p]" value="1"<?php checked( ! empty( $tdata['noprint'][ $k ] ) ); ?> aria-label="<?php echo esc_attr( $u['title'] ); ?> nicht drucken">
-									</td>
-								</tr>
-							<?php endforeach; ?>
-							</tbody>
-						</table>
-					</div>
-				<?php endif; ?>
-
+				<h2>Tags</h2>
+				<p class="description" style="max-width:900px">
+					Tags schreibst du in die <strong>Beschreibung des Google-Termins</strong> in eckigen Klammern, zum Beispiel <code>[Angebot]</code> oder <code>[Selbsthilfe] [Jugend]</code>. Ein Termin kann mehrere Tags haben. Hier legst du für jeden Tag die Farbe und den Bereich im Ausdruck fest.
+					<strong>Gedruckt werden nur Termine, die mindestens einen Tag mit Bereich haben</strong>; Tags ohne Bereich filtern nur im Kalender. Ein Termin mit mehreren Bereichen steht in jedem davon. Tags, die in den Terminen vorkommen, aber noch nicht gespeichert sind, werden mit „neu“ angezeigt.
+				</p>
+				<table class="widefat striped" id="gcalmk-tagtable" style="max-width:920px">
+					<thead><tr><th style="width:150px">Farbe</th><th>Tag (ohne Klammern)</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
+					<tbody>
+					<?php $i = 0; foreach ( $rows as $n => $r ) : ?>
+						<tr>
+							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( $r['color'] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $color_options( $r['color'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td>
+								<input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $r['name'] ); ?>">
+								<?php if ( $r['new'] ) : ?><em style="color:#996800">neu – mit „Speichern“ übernehmen</em><?php endif; ?>
+							</td>
+							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $area_options( $r['area'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td><?php echo (int) $r['count']; ?></td>
+							<td style="text-align:center"><input type="checkbox" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][del]" value="1" aria-label="<?php echo esc_attr( $r['name'] ); ?> entfernen"></td>
+						</tr>
+						<?php $i++; ?>
+					<?php endforeach; ?>
+					<?php for ( $b = 0; $b < 2; $b++, $i++ ) : ?>
+						<tr>
+							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( array_keys( $palette )[0] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="" placeholder="Neuer Tag"></td>
+							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td>–</td>
+							<td></td>
+						</tr>
+					<?php endfor; ?>
+					</tbody>
+				</table>
+				<template id="gcalmk-tagrow">
+					<tr>
+						<td><select class="gcalmk-col" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+						<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][name]" value="" placeholder="Neuer Tag"></td>
+						<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+						<td>–</td>
+						<td></td>
+					</tr>
+				</template>
+				<p><button type="button" class="button" id="gcalmk-addtag" data-next="<?php echo (int) $i; ?>">+ Weiteren Tag hinzufügen</button></p>
 				<script>
 				(function () {
-					var table = document.getElementById('gcalmk-events');
-					if (!table) { return; }
-					var rows = [].slice.call(table.querySelectorAll('tbody tr')),
-						filter = document.getElementById('gcalmk-filter'), only = document.getElementById('gcalmk-onlyuntagged'),
-						info = document.getElementById('gcalmk-visible');
-					function nk(s) { return s.toLowerCase().replace(/\s+/g, ' ').trim(); }
-					function inp(r) { return r.querySelector('.gcalmk-tag'); }
-					function sel(r) { return r.querySelector('.gcalmk-col'); }
+					var table = document.getElementById('gcalmk-tagtable');
 					function paint(s) { s.style.color = s.value; }
-					function visible(r) { return r.style.display !== 'none'; }
-					function apply() {
-						var q = filter.value.trim().toLowerCase(), n = 0;
-						rows.forEach(function (r) {
-							var ok = (!q || r.getAttribute('data-title').indexOf(q) !== -1) && (!only.checked || nk(inp(r).value) === '');
-							r.style.display = ok ? '' : 'none';
-							if (ok) { n++; }
-						});
-						info.textContent = n + ' von ' + rows.length + ' angezeigt';
-					}
-					// Gleiche Tags bekommen immer dieselbe Farbe.
-					function syncColor(from) {
-						var k = nk(inp(from).value);
-						if (!k) { return; }
-						rows.forEach(function (o) {
-							if (o !== from && nk(inp(o).value) === k) { sel(o).value = sel(from).value; paint(sel(o)); }
+					function bind(root) {
+						[].forEach.call(root.querySelectorAll('select.gcalmk-col'), function (s) {
+							paint(s);
+							s.addEventListener('change', function () { paint(s); });
 						});
 					}
-					rows.forEach(function (r) {
-						paint(sel(r));
-						sel(r).addEventListener('change', function () { paint(sel(r)); syncColor(r); });
-						inp(r).addEventListener('change', function () {
-							var k = nk(inp(r).value);
-							if (k) {
-								for (var i = 0; i < rows.length; i++) {
-									if (rows[i] !== r && nk(inp(rows[i]).value) === k) { sel(r).value = sel(rows[i]).value; paint(sel(r)); break; }
-								}
-							}
-							apply();
-						});
-						r.querySelector('.gcalmk-del').addEventListener('click', function () { inp(r).value = ''; apply(); });
+					bind(table);
+					var add = document.getElementById('gcalmk-addtag'), tpl = document.getElementById('gcalmk-tagrow');
+					add.addEventListener('click', function () {
+						var i = parseInt(add.getAttribute('data-next'), 10);
+						add.setAttribute('data-next', String(i + 1));
+						table.querySelector('tbody').insertAdjacentHTML('beforeend', tpl.innerHTML.replace(/__I__/g, String(i)));
+						bind(table.querySelector('tbody tr:last-child'));
 					});
-					filter.addEventListener('input', apply);
-					filter.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); } });
-					only.addEventListener('change', apply);
-
-					var bt = document.getElementById('gcalmk-bulktag'), bc = document.getElementById('gcalmk-bulkcolor');
-					bt.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); } });
-					document.getElementById('gcalmk-bulkapply').addEventListener('click', function () {
-						if (!bt.value.trim()) { return; }
-						var first = null;
-						rows.forEach(function (r) {
-							if (!visible(r)) { return; }
-							inp(r).value = bt.value.trim();
-							sel(r).value = bc.value; paint(sel(r));
-							first = first || r;
-						});
-						if (first) { syncColor(first); }
-						apply();
-					});
-					document.getElementById('gcalmk-bulkdelete').addEventListener('click', function () {
-						rows.forEach(function (r) { if (visible(r)) { inp(r).value = ''; } });
-						apply();
-					});
-					function setNoPrint(v) {
-						rows.forEach(function (r) { if (visible(r)) { r.querySelector('.gcalmk-np').checked = v; } });
-					}
-					document.getElementById('gcalmk-bulknoprint').addEventListener('click', function () { setNoPrint(true); });
-					document.getElementById('gcalmk-bulkprint').addEventListener('click', function () { setNoPrint(false); });
-					document.getElementById('gcalmk-bulkgroupset').addEventListener('click', function () {
-						var v = document.getElementById('gcalmk-bulkgroup').value;
-						rows.forEach(function (r) { if (visible(r)) { r.querySelector('.gcalmk-grp').value = v; } });
-					});
-					apply();
 				})();
 				</script>
 				<?php submit_button( 'Speichern und synchronisieren' ); ?>
@@ -402,7 +343,7 @@ class GCalMK_Settings {
 				<tbody>
 					<tr><td>Letzte erfolgreiche Synchronisation</td><td><?php echo esc_html( self::fmt_time( $status['last_ok'] ) ); ?></td></tr>
 					<tr><td>Termine im Zwischenspeicher</td><td><?php echo esc_html( count( $cache['events'] ) ); ?></td></tr>
-					<tr><td>Verschiedene Termine / davon mit Tag</td><td><?php echo esc_html( count( $uniq ) . ' / ' . $tagged ); ?></td></tr>
+					<tr><td>Termine mit Tag / verschiedene Tags</td><td><?php echo esc_html( $with_tag . ' / ' . count( $found ) ); ?></td></tr>
 					<tr><td>Nächster automatischer Abruf</td><td><?php echo esc_html( self::fmt_time( $next ) ); ?></td></tr>
 					<tr><td>Letzter Fehler</td><td><?php echo $status['last_error'] ? esc_html( $status['last_error'] . ' (' . self::fmt_time( $status['error_time'] ) . ')' ) : '–'; ?></td></tr>
 				</tbody>
@@ -420,10 +361,10 @@ class GCalMK_Settings {
 
 			<h2>Einbinden</h2>
 			<p>Shortcode auf einer Seite einfügen: <code>[gcal_kalender]</code></p>
-			<p>Optional (Standard: volle Seitenbreite, mit <code>breite="inhalt"</code> nur Inhaltsbreite): <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste.</p>
+			<p>Optional (Standard: volle Seitenbreite, mit <code>breite="inhalt"</code> nur Inhaltsbreite): <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste, <code>oben="70"</code> setzt den Abstand des fixierten Kopfbereichs (Pixel).</p>
 
 			<h2>Hinweise</h2>
-			<p>Tags und ihre Zuordnung wirken sofort, ohne neuen Abruf. Der Kalender zeigt als Filter nur Tags, die mindestens einen Termin ab heute haben. Ein Tag, dessen Termine wiederkehrend sind (Serien-Information von Google), trägt im Kalender das Symbol „↻“.</p>
+			<p>Der Kalender zeigt als Filter nur Tags, die mindestens einen Termin ab heute haben. Ein Tag, dessen Termine wiederkehrend sind (Serien-Information von Google), trägt im Kalender das Symbol „↻“. Änderungen an Farbe und Bereich wirken sofort; neue Tags in den Google-Terminen erscheinen nach dem nächsten Abruf (alle 10 Minuten).</p>
 			<p class="description">Der Abruf läuft über WP-Cron alle 10 Minuten (bei Besuchen der Seite). Für exakte Takte einen Server-Cron auf <code>wp-cron.php</code> einrichten und <code>DISABLE_WP_CRON</code> setzen.</p>
 		</div>
 		<?php

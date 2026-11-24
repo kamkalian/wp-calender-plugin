@@ -87,7 +87,7 @@
 		this.tagsOpen = false;
 		this.tagRecurring = {};
 		this.colors = {};
-		this.groups = []; // Gruppen des Ausdrucks (Überschriften in Reihenfolge)
+		this.areas = []; // Bereiche des Ausdrucks (Überschriften in Reihenfolge)
 		this.query = '';
 		this.events = [];
 		this.tags = [];
@@ -240,7 +240,7 @@
 
 	var DAY = 86400000;
 	// Abgesagte Termine ("entfällt" in beliebiger Groß-/Kleinschreibung im Titel) kommen nicht in den Ausdruck.
-	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title) || !!ev.noPrint; } // noPrint: in den Einstellungen vom Druck ausgenommen
+	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title); }
 	function isoToTime(s) { var p = parseIso(s); return Date.UTC(p.y, p.m, p.d); }
 	function timeToIso(t) { var d = new Date(t); return iso(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
 	function printDate(s) { var p = parseIso(s); return pad(p.d) + '.' + pad(p.m + 1) + '.' + String(p.y).slice(2); }
@@ -366,29 +366,34 @@
 		return { key: alnum(t), display: up(t), closed: false };
 	}
 
-	// Eindeutige Termine (nach Titel) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
+	// Eindeutige Termine (nach Titel) je Bereich ab dem ersten Tag des angezeigten Monats; jeder erscheint je Bereich genau einmal.
+	// Der Bereich kommt aus den Tags des Termins (siehe Einstellungen). Termine ohne Tag mit Bereich werden nicht gedruckt.
 	// Hat ein Termin mehrere Uhrzeiten, bekommt er je Uhrzeit einen Abschnitt ("slot") mit eigenen Tagen.
 	Calendar.prototype.printEntries = function () {
 		var from = this.todayIso, groups = {}, order = []; // nur Termine ab heute
+		var hasAreas = this.areas.length > 0;
 		this.filtered().forEach(function (ev) {
 			if (isCancelled(ev) || ev.endDate < from) { return; }
-			var tk = printTitle(ev.title), key = tk.key;
-			var g = groups[key];
-			if (!g) {
-				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', group: '', recurring: false, slots: {}, slotOrder: [] };
-				order.push(g);
-			}
-			if (!g.group && ev.group) { g.group = ev.group; }   // Druckgruppe (Beschriftung im Termin oder Einstellungen)
-			if (ev.recurring) { g.recurring = true; }
-			// geschlossene Tage bilden einen Abschnitt ohne Uhrzeit
-			var sk = tk.closed ? 'geschlossen' : (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
-			var s = g.slots[sk];
-			if (!s) {
-				s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, closed: tk.closed, dates: {} };
-				g.slotOrder.push(s);
-			}
-			var t = isoToTime(ev.startDate < from ? from : ev.startDate), end = isoToTime(ev.endDate);
-			for (; t <= end; t += DAY) { s.dates[timeToIso(t)] = true; }
+			var evAreas = hasAreas ? (ev.areas || []) : ['']; // ohne eingerichtete Bereiche: eine Liste
+			if (!evAreas.length) { return; }
+			var tk = printTitle(ev.title);
+			evAreas.forEach(function (area) {
+				var key = area + '|' + tk.key;
+				var g = groups[key];
+				if (!g) {
+					g = groups[key] = { area: area, title: tk.display, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
+					order.push(g);
+				}
+				// geschlossene Tage bilden einen Abschnitt ohne Uhrzeit
+				var sk = tk.closed ? 'geschlossen' : (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
+				var s = g.slots[sk];
+				if (!s) {
+					s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, closed: tk.closed, dates: {} };
+					g.slotOrder.push(s);
+				}
+				var t = isoToTime(ev.startDate < from ? from : ev.startDate), end = isoToTime(ev.endDate);
+				for (; t <= end; t += DAY) { s.dates[timeToIso(t)] = true; }
+			});
 		});
 		order.forEach(function (g) {
 			g.slotOrder.forEach(function (s) { s.list = Object.keys(s.dates).sort(); });
@@ -409,10 +414,12 @@
 		var entries = this.printEntries();
 		var heading = 'ab ' + shortDate(this.todayIso);
 		var lastDay = '';
+		var seenTitles = {};
 
 		// eine Tabelle (Termin | Zeit | Tage) für eine Liste von Einträgen
 		var renderTable = function (list) {
 			var body = list.map(function (g) {
+				seenTitles[g.title.toLowerCase()] = true;
 				var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
 				var n = g.slotOrder.length;
 				var rows = g.slotOrder.map(function (s, i) {
@@ -433,31 +440,23 @@
 			return '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>';
 		};
 
-		// Aufteilung nach Gruppen (Reihenfolge wie in den Einstellungen). Nicht zugeordnet: wiederkehrende Termine in die erste
-		// Gruppe, Einzeltermine unter "Sonstige Veranstaltungen".
-		var names = this.groups.slice();
-		var other = '';
-		names.forEach(function (nm) { if (!other && /^sonstige/i.test(nm)) { other = nm; } });
-		if (!other) { other = 'Sonstige Veranstaltungen'; }
-		var firstGroup = names.length && names[0] !== other ? names[0] : '';
+		// Aufteilung nach Bereichen (Reihenfolge wie in den Einstellungen)
 		var buckets = {};
-		entries.forEach(function (g) {
-			var nm = g.group || (g.recurring && firstGroup ? firstGroup : other);
-			(buckets[nm] = buckets[nm] || []).push(g);
-		});
-		var order = names.filter(function (nm) { return buckets[nm]; });
-		if (buckets[other] && order.indexOf(other) === -1) { order.push(other); }
-
+		entries.forEach(function (g) { (buckets[g.area] = buckets[g.area] || []).push(g); });
 		var n = entries.length, html;
 		if (!n) {
-			html = '<p class="empty">Keine Termine in diesem Zeitraum.</p>';
-		} else if (!names.length) {
-			html = renderTable(entries); // keine Gruppen eingerichtet: eine Liste
+			html = this.areas.length
+				? '<p class="empty">Keine Termine mit einem Tag, der einem Bereich zugeordnet ist (Tags in der Beschreibung der Google-Termine, Bereiche in den Einstellungen).</p>'
+				: '<p class="empty">Keine Termine in diesem Zeitraum.</p>';
+		} else if (!this.areas.length) {
+			html = renderTable(entries); // keine Bereiche eingerichtet: eine Liste
 		} else {
-			html = order.map(function (nm) { return '<h2>' + esc(nm) + '</h2>' + renderTable(buckets[nm]); }).join('');
+			html = this.areas.filter(function (a) { return buckets[a]; })
+				.map(function (a) { return '<h2>' + esc(a) + '</h2>' + renderTable(buckets[a]); }).join('');
 		}
 
-		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
+		var count = Object.keys(seenTitles).length;
+		var sub = count + (count === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
 			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
@@ -509,7 +508,7 @@
 			.then(function (data) {
 				self.events = data.events || [];
 				self.colors = data.colors || {};
-				self.groups = data.groups || [];
+				self.areas = data.areas || [];
 				self.computeTags();
 				if (self.tag) {
 					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.

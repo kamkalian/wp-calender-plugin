@@ -4,18 +4,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tags: Jeder Termin (eindeutig nach Titel) hat automatisch einen Tag aus seinem Titel.
- * In den Einstellungen lässt sich der Tag je Eintrag frei umschreiben oder löschen, die Farbe kommt aus einer festen Auswahl.
+ * Tags stehen in der Beschreibung des Google-Termins in eckigen Klammern, z. B. "[Angebot] [Jugend]".
+ * Ein Termin kann mehrere Tags haben. In den Einstellungen bekommt jeder Tag eine Farbe und optional einen Bereich
+ * (Überschrift) für den Ausdruck. Tags ohne Bereich gibt es auch: Sie filtern nur im Kalender und kommen nicht in den Ausdruck.
  *
- * Option gcalmk_tagdata:
- *   titles => array( md5-Schlüssel des Titels => Tag-Text, '' = bewusst kein Tag )   (nur Abweichungen vom Standard)
- *   colors => array( Tag klein geschrieben => #rrggbb )
+ * Option gcalmk_tagdata:  tags => array( Tagname klein geschrieben => array( name, color, area ) )
  */
 class GCalMK_Tags {
 
 	const OPT = 'gcalmk_tagdata';
 
-	/** Auswahl der Farben für das Dropdown (Name => Hex). */
+	/** Auswahl der Farben für das Dropdown (Hex => Name). */
 	public static function palette() {
 		return array(
 			'#c62828' => 'Rot',
@@ -41,216 +40,171 @@ class GCalMK_Tags {
 		);
 	}
 
-	/** Reihenfolge, in der neue Tags automatisch Farben bekommen (wechselt die Farbfamilie von Tag zu Tag). */
 	private static function auto_order() {
 		return array( '#c62828', '#1e88e5', '#2e7d32', '#e65100', '#6a1b9a', '#00897b', '#b8860b', '#c2185b', '#1565c0', '#6b7d1f', '#7b1e3a', '#ec407a', '#1b5e20', '#9c27b0', '#6d4c41', '#006978', '#43a047', '#0d3b8c', '#6b7280', '#222222' );
 	}
 
-	public static function data() {
-		$d = get_option( self::OPT, array() );
-		if ( ! is_array( $d ) ) {
-			$d = array();
-		}
-		$d['titles'] = isset( $d['titles'] ) && is_array( $d['titles'] ) ? $d['titles'] : array();
-		$d['colors'] = isset( $d['colors'] ) && is_array( $d['colors'] ) ? $d['colors'] : array();
-		$d['noprint'] = isset( $d['noprint'] ) && is_array( $d['noprint'] ) ? $d['noprint'] : array(); // Titel-Schlüssel => 1: nicht im Ausdruck.
-		$d['groups']  = isset( $d['groups'] ) && is_array( $d['groups'] ) ? $d['groups'] : array();   // Titel-Schlüssel => Name der Druckgruppe.
-		return $d;
-	}
-
-	/** Titel ohne führende Ordnungszahl ("10. "), Emojis/Symbole und doppelte Leerzeichen. */
-	private static function stripped( $title ) {
-		$t = preg_replace( '/^\s*\d+\s*\.\s+/u', '', (string) $title );
-		$t = preg_replace( '/[\p{So}\p{Sk}\x{FE0F}\x{200D}]+/u', '', $t );
-		return trim( preg_replace( '/\s+/u', ' ', $t ) );
-	}
-
-	/** Schlüssel eines Termins: gleich, wenn sich Titel nur durch Zahl am Anfang, Emojis, Satzzeichen oder Groß-/Kleinschreibung unterscheiden. */
-	public static function title_key( $title ) {
-		$t = mb_strtolower( self::stripped( $title ), 'UTF-8' );
-		$t = trim( preg_replace( '/[^\p{L}\p{N}]+/u', ' ', $t ) );
-		return md5( $t );
-	}
-
-	/** Standard-Tag: der bereinigte Titel. */
-	public static function default_tag( $title ) {
-		static $cache = array();
-		if ( isset( $cache[ $title ] ) ) {
-			return $cache[ $title ];
-		}
-		$t = trim( self::stripped( $title ), " \t-–—:,;" );
-		if ( '' === $t ) {
-			$t = '(ohne Titel)';
-		}
-		$t = mb_strtoupper( mb_substr( $t, 0, 1, 'UTF-8' ), 'UTF-8' ) . mb_substr( $t, 1, null, 'UTF-8' );
-		$cache[ $title ] = $t;
-		return $t;
-	}
-
-	public static function norm( $tag ) {
-		return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', (string) $tag ) ), 'UTF-8' );
-	}
-
-	/** Tag eines Eintrags: gespeicherte Abweichung oder Standard. */
-	public static function effective_tag( $title, $key, $data ) {
-		if ( isset( $data['titles'][ $key ] ) ) {
-			return (string) $data['titles'][ $key ];
-		}
-		return self::default_tag( $title );
-	}
-
-	/** Eindeutige Einträge aus dem Cache: key => array( title, count, recurring ), alphabetisch. */
-	public static function unique_titles( $events ) {
-		$out = array();
-		foreach ( $events as $ev ) {
-			$k = self::title_key( $ev['title'] );
-			if ( ! isset( $out[ $k ] ) ) {
-				$out[ $k ] = array(
-					'title'     => $ev['title'],
-					'count'     => 0,
-					'recurring' => false,
-				);
-			}
-			$out[ $k ]['count']++;
-			if ( ! empty( $ev['recurring'] ) ) {
-				$out[ $k ]['recurring'] = true;
-			}
-		}
-		uasort(
-			$out,
-			function ( $a, $b ) {
-				return strnatcasecmp( self::stripped( $a['title'] ), self::stripped( $b['title'] ) );
-			}
-		);
-		return $out;
-	}
-
 	/** Farbe eines Tags ohne gespeicherte Wahl (stabil über den Namen). */
-	private static function fallback_color( $tag_norm ) {
+	public static function fallback_color( $tag_norm ) {
 		$order = self::auto_order();
 		return $order[ hexdec( substr( md5( $tag_norm ), 0, 6 ) ) % count( $order ) ];
 	}
 
-	/**
-	 * Fügt jedem Termin sein Tag hinzu. Gibt array( events, colors ) zurück (colors: Tag-Name => #rrggbb).
-	 */
-	public static function apply( $events ) {
-		$data   = self::data();
-		$disp   = array(); // normalisierter Tag => Anzeigename (erste Schreibweise).
-		$colors = array();
-		$glist  = array(); // normalisierter Gruppenname => Name aus der Gruppenliste der Einstellungen.
-		$sett   = GCalMK_Settings::get();
-		foreach ( $sett['print_groups'] as $gn ) {
-			$glist[ self::norm( $gn ) ] = $gn;
+	public static function norm( $s ) {
+		return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', (string) $s ) ), 'UTF-8' );
+	}
+
+	/** Bereiche des Ausdrucks (Überschriften) – Standard, solange nichts gespeichert ist. */
+	public static function default_areas() {
+		return array(
+			'Treffen und Angebote',
+			'Selbsthilfegruppen und Beratungen',
+			'Unsere Jugendangebote',
+			'Sonstige Veranstaltungen',
+			'Tagesfahrten / Wanderungen / Urlaub',
+		);
+	}
+
+	/** Vorgeschlagene Tags, solange noch nichts gespeichert wurde. */
+	public static function default_tags() {
+		$p   = array_keys( self::palette() );
+		$def = array(
+			array( 'Angebot', '#1e88e5', 'Treffen und Angebote' ),
+			array( 'Selbsthilfe', '#2e7d32', 'Selbsthilfegruppen und Beratungen' ),
+			array( 'Jugend', '#e65100', 'Unsere Jugendangebote' ),
+			array( 'Event', '#6a1b9a', 'Sonstige Veranstaltungen' ),
+			array( 'Tour', '#00897b', 'Tagesfahrten / Wanderungen / Urlaub' ),
+			array( 'Urlaub', '#c2185b', 'Tagesfahrten / Wanderungen / Urlaub' ),
+		);
+		$out = array();
+		foreach ( $def as $d ) {
+			$out[ self::norm( $d[0] ) ] = array(
+				'name'  => $d[0],
+				'color' => $d[1],
+				'area'  => $d[2],
+			);
 		}
-		foreach ( $events as $i => $ev ) {
-			$key = self::title_key( $ev['title'] );
-			if ( ! empty( $data['noprint'][ $key ] ) ) {
-				$events[ $i ]['noPrint'] = true; // laut Einstellungen nicht im Ausdruck
-			}
-			// Druckgruppe: zuerst die Beschriftung "Gruppe: …" im Google-Termin, sonst die Zuordnung in den Einstellungen.
-			$gname = '';
-			foreach ( array( isset( $ev['group'] ) ? $ev['group'] : '', isset( $data['groups'][ $key ] ) ? $data['groups'][ $key ] : '' ) as $cand ) {
-				$ck = self::norm( $cand );
-				if ( '' !== $ck && isset( $glist[ $ck ] ) ) {
-					$gname = $glist[ $ck ];
-					break;
-				}
-			}
-			if ( '' !== $gname ) {
-				$events[ $i ]['group'] = $gname;
-			} else {
-				unset( $events[ $i ]['group'] );
-			}
-			$tag = self::effective_tag( $ev['title'], $key, $data );
-			$tn  = self::norm( $tag );
-			if ( '' === $tn ) {
-				$events[ $i ]['tags'] = array();
+		return $out;
+	}
+
+	/** Gespeicherte Tag-Einstellungen (norm => name, color, area); vor dem ersten Speichern die Vorschläge. */
+	public static function config() {
+		$d = get_option( self::OPT, null );
+		if ( is_array( $d ) && isset( $d['tags'] ) && is_array( $d['tags'] ) ) {
+			return $d['tags'];
+		}
+		return self::default_tags();
+	}
+
+	/** Alle Tags, die in den Terminen vorkommen: norm => array( name, count ) (Name in der ersten gefundenen Schreibweise). */
+	public static function found( $events ) {
+		$out = array();
+		foreach ( $events as $ev ) {
+			if ( empty( $ev['tags'] ) ) {
 				continue;
 			}
-			if ( ! isset( $disp[ $tn ] ) ) {
-				$disp[ $tn ]            = trim( preg_replace( '/\s+/u', ' ', $tag ) );
-				$colors[ $disp[ $tn ] ] = isset( $data['colors'][ $tn ] ) ? $data['colors'][ $tn ] : self::fallback_color( $tn );
+			foreach ( $ev['tags'] as $t ) {
+				$n = self::norm( $t );
+				if ( '' === $n ) {
+					continue;
+				}
+				if ( ! isset( $out[ $n ] ) ) {
+					$out[ $n ] = array(
+						'name'  => trim( preg_replace( '/\s+/u', ' ', $t ) ),
+						'count' => 0,
+					);
+				}
+				$out[ $n ]['count']++;
 			}
-			$events[ $i ]['tags'] = array( $disp[ $tn ] );
+		}
+		return $out;
+	}
+
+	/**
+	 * Wendet die Einstellungen auf die Termine an: kanonische Tag-Namen, Bereiche für den Ausdruck und Farben.
+	 * Gibt array( events, colors ) zurück (colors: Tag-Name => #rrggbb).
+	 */
+	public static function apply( $events ) {
+		$cfg   = self::config();
+		$areas = array();
+		foreach ( GCalMK_Settings::get()['print_areas'] as $a ) {
+			$areas[ self::norm( $a ) ] = $a;
+		}
+		$disp   = array(); // norm => Anzeigename.
+		$colors = array();
+		foreach ( $events as $i => $ev ) {
+			$tags    = array();
+			$evareas = array();
+			$seen    = array();
+			foreach ( isset( $ev['tags'] ) ? $ev['tags'] : array() as $t ) {
+				$n = self::norm( $t );
+				if ( '' === $n || isset( $seen[ $n ] ) ) {
+					continue;
+				}
+				$seen[ $n ] = true;
+				if ( isset( $cfg[ $n ] ) ) {
+					$name  = $cfg[ $n ]['name'];
+					$color = $cfg[ $n ]['color'];
+					$an    = self::norm( isset( $cfg[ $n ]['area'] ) ? $cfg[ $n ]['area'] : '' );
+					if ( '' !== $an && isset( $areas[ $an ] ) && ! in_array( $areas[ $an ], $evareas, true ) ) {
+						$evareas[] = $areas[ $an ];
+					}
+				} else {
+					if ( ! isset( $disp[ $n ] ) ) {
+						$disp[ $n ] = trim( preg_replace( '/\s+/u', ' ', $t ) );
+					}
+					$name  = $disp[ $n ];
+					$color = self::fallback_color( $n );
+				}
+				$tags[]          = $name;
+				$colors[ $name ] = $color;
+			}
+			$events[ $i ]['tags'] = $tags;
+			if ( $evareas ) {
+				$events[ $i ]['areas'] = $evareas;
+			} else {
+				unset( $events[ $i ]['areas'] );
+			}
 		}
 		return array( $events, $colors );
 	}
 
-	/** Vergibt Farben für Tags ohne gespeicherte Farbe (jeweils die nächste der Reihe) und speichert sie. Gibt tag => hex zurück. */
-	public static function ensure_colors( $events ) {
-		$data    = self::data();
-		$order   = self::auto_order();
-		$changed = false;
-		foreach ( self::unique_titles( $events ) as $k => $u ) {
-			$tn = self::norm( self::effective_tag( $u['title'], $k, $data ) );
-			if ( '' === $tn || isset( $data['colors'][ $tn ] ) ) {
-				continue;
-			}
-			$data['colors'][ $tn ] = $order[ count( $data['colors'] ) % count( $order ) ];
-			$changed               = true;
-		}
-		if ( $changed ) {
-			update_option( self::OPT, $data, false );
-		}
-		return $data['colors'];
-	}
-
 	/**
-	 * Eingabe der Einstellungsseite: gcalmk_tagdata[md5][t] = Tag-Text, [c] = Farbe.
-	 * Nicht gesendete Einträge bleiben unverändert. WordPress ruft die Bereinigung teils zweimal auf; die fertige Struktur wird durchgereicht.
+	 * Eingabe der Einstellungsseite: gcalmk_tagdata[rows][i][name|color|area|del].
+	 * WordPress ruft die Bereinigung teils zweimal auf; die fertige Struktur (tags => …) wird durchgereicht.
 	 */
 	public static function sanitize( $in ) {
-		$data = self::data();
 		if ( ! is_array( $in ) ) {
-			return $data;
+			return array( 'tags' => self::config() );
 		}
-		if ( isset( $in['titles'] ) || isset( $in['colors'] ) || isset( $in['noprint'] ) || isset( $in['groups'] ) ) {
-			return array(
-				'titles'  => isset( $in['titles'] ) && is_array( $in['titles'] ) ? $in['titles'] : array(),
-				'colors'  => isset( $in['colors'] ) && is_array( $in['colors'] ) ? $in['colors'] : array(),
-				'noprint' => isset( $in['noprint'] ) && is_array( $in['noprint'] ) ? $in['noprint'] : array(),
-				'groups'  => isset( $in['groups'] ) && is_array( $in['groups'] ) ? $in['groups'] : array(),
-			);
+		if ( isset( $in['tags'] ) && is_array( $in['tags'] ) ) {
+			return array( 'tags' => $in['tags'] );
 		}
-
-		$allowed  = self::palette();
-		$defaults = array();
-		foreach ( self::unique_titles( GCalMK_Sync::get_cache()['events'] ) as $k => $u ) {
-			$defaults[ $k ] = self::norm( self::default_tag( $u['title'] ) );
+		if ( ! isset( $in['rows'] ) || ! is_array( $in['rows'] ) ) {
+			return array( 'tags' => self::config() );
 		}
-
-		foreach ( $in as $k => $row ) {
-			$k = strtolower( preg_replace( '/[^A-Fa-f0-9]/', '', (string) $k ) );
-			if ( 32 !== strlen( $k ) || ! is_array( $row ) ) {
+		$allowed = self::palette();
+		$out     = array();
+		foreach ( $in['rows'] as $row ) {
+			if ( ! is_array( $row ) || ! empty( $row['del'] ) ) {
 				continue;
 			}
-			$tag = trim( preg_replace( '/\s+/u', ' ', sanitize_text_field( isset( $row['t'] ) ? (string) $row['t'] : '' ) ) );
-			$tag = mb_substr( $tag, 0, 80, 'UTF-8' );
-			$tn  = self::norm( $tag );
-			if ( isset( $defaults[ $k ] ) && $tn === $defaults[ $k ] ) {
-				unset( $data['titles'][ $k ] ); // entspricht dem Standard
-			} else {
-				$data['titles'][ $k ] = $tag; // '' = bewusst kein Tag
+			$name = mb_substr( trim( preg_replace( '/\s+/u', ' ', sanitize_text_field( isset( $row['name'] ) ? (string) $row['name'] : '' ) ) ), 0, 40, 'UTF-8' );
+			$name = trim( str_replace( array( '[', ']' ), '', $name ) );
+			$n    = self::norm( $name );
+			if ( '' === $n || isset( $out[ $n ] ) ) {
+				continue;
 			}
-			if ( ! empty( $row['p'] ) ) {
-				$data['noprint'][ $k ] = 1; // nicht drucken
-			} else {
-				unset( $data['noprint'][ $k ] );
+			$hex = isset( $row['color'] ) ? strtolower( (string) $row['color'] ) : '';
+			if ( ! isset( $allowed[ $hex ] ) ) {
+				$hex = self::fallback_color( $n );
 			}
-			if ( isset( $row['g'] ) ) { // Druckgruppe ('' = automatisch)
-				$gname = mb_substr( trim( sanitize_text_field( (string) $row['g'] ) ), 0, 80, 'UTF-8' );
-				if ( '' !== $gname ) {
-					$data['groups'][ $k ] = $gname;
-				} else {
-					unset( $data['groups'][ $k ] );
-				}
-			}
-			$hex = isset( $row['c'] ) ? strtolower( (string) $row['c'] ) : '';
-			if ( '' !== $tn && isset( $allowed[ $hex ] ) ) {
-				$data['colors'][ $tn ] = $hex;
-			}
+			$out[ $n ] = array(
+				'name'  => $name,
+				'color' => $hex,
+				'area'  => mb_substr( trim( sanitize_text_field( isset( $row['area'] ) ? (string) $row['area'] : '' ) ), 0, 80, 'UTF-8' ),
+			);
 		}
-		return $data;
+		return array( 'tags' => $out );
 	}
 }
