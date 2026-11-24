@@ -235,107 +235,103 @@
 		this.root.classList.toggle('gcalmk-nobars', !this.prefs.bars);
 	};
 
-	// ---- Drucken: angezeigter Monat auf DIN A4, jeder Termin nur einmal -----------------
+	// ---- Drucken: alle eindeutigen Termine ab dem angezeigten Monat auf DIN A4 ---------------
 
-	// Tage eines Eintrags kompakt: "Mo: 2., 9., 16." / "2.–6., 9.–13." / "Do 5."
-	function daysText(y, m, list) {
+	var DAY = 86400000;
+	// Abgesagte Termine ("entfällt" in beliebiger Groß-/Kleinschreibung im Titel) kommen nicht in den Ausdruck.
+	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title); }
+	function isoToTime(s) { var p = parseIso(s); return Date.UTC(p.y, p.m, p.d); }
+	function timeToIso(t) { var d = new Date(t); return iso(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
+	function printDate(s) { var p = parseIso(s); return pad(p.d) + '.' + pad(p.m + 1) + '.' + String(p.y).slice(2); }
+	function wdOf(s) { var p = parseIso(s); return weekday(p.y, p.m, p.d); }
+
+	// Wochentage eines Eintrags: "Mo", "Di/Do", "Mo–Fr", "täglich"
+	function weekdayText(wds) {
+		if (wds.length === 7) { return 'täglich'; }
+		if (wds.length >= 3 && wds[wds.length - 1] - wds[0] === wds.length - 1) { return WDAYS[wds[0]] + '–' + WDAYS[wds[wds.length - 1]]; }
+		return wds.map(function (k) { return WDAYS[k]; }).join('/');
+	}
+
+	// Text für die Spalte "Tage": wenige Einzeltage ausgeschrieben, sonst Wochentage + Zeitraum + Anzahl.
+	function datesText(list) {
 		var runs = [], i = 0, j;
 		while (i < list.length) {
 			j = i;
-			while (j + 1 < list.length && list[j + 1] === list[j] + 1) { j++; }
+			while (j + 1 < list.length && isoToTime(list[j + 1]) - isoToTime(list[j]) === DAY) { j++; }
 			runs.push([list[i], list[j]]);
 			i = j + 1;
 		}
-		var wd = {};
-		list.forEach(function (d) { wd[weekday(y, m, d)] = true; });
-		var kinds = Object.keys(wd).map(Number).sort(function (a, b) { return a - b; });
-		// Einzelner Tag: "Do 5."  ·  bis 3 Wochentage: "Di/Do: 3., 5., 10."  ·  sonst nur Tage bzw. Bereiche: "2.–6., 9.–13."
-		if (list.length === 1) { return WDAYS[kinds[0]] + ' ' + list[0] + '.'; }
-		var prefix = kinds.length <= 3 ? kinds.map(function (k) { return WDAYS[k]; }).join('/') + ': ' : '';
-		if (kinds.length >= 2 && kinds.length <= 3) {
-			// Mehrere Wochentage: Tage derselben Woche mit "/" verbinden, z. B. "Di/Do: 3./5., 10./12."
-			var weeks = {}, order = [];
-			list.forEach(function (d) {
-				var wk = d - weekday(y, m, d);
-				if (!weeks[wk]) { weeks[wk] = []; order.push(wk); }
-				weeks[wk].push(d + '.');
-			});
-			return prefix + order.map(function (wk) { return weeks[wk].join('/'); }).join(', ');
+		if (runs.length <= 4) {
+			return { main: runs.map(function (r) {
+				return r[0] === r[1] ? WDAYS[wdOf(r[0])] + ' ' + printDate(r[0]) : printDate(r[0]) + ' – ' + printDate(r[1]);
+			}).join(', '), sub: '' };
 		}
-		return prefix + runs.map(function (r) {
-			return r[0] !== r[1] ? r[0] + '.–' + r[1] + '.' : r[0] + '.';
-		}).join(', ');
+		var seen = {}, wds = [];
+		list.forEach(function (s) { var k = wdOf(s); if (!seen[k]) { seen[k] = true; wds.push(k); } });
+		wds.sort(function (a, b) { return a - b; });
+		var main = weekdayText(wds);
+		// gleichmäßiger Abstand bei einem Wochentag: wöchentlich / alle n Wochen
+		if (wds.length === 1) {
+			var gap = (isoToTime(list[1]) - isoToTime(list[0])) / DAY, even = gap % 7 === 0;
+			for (i = 2; even && i < list.length; i++) { even = (isoToTime(list[i]) - isoToTime(list[i - 1])) / DAY === gap; }
+			if (even) { main += gap === 7 ? ' wöchentlich' : ' alle ' + (gap / 7) + ' Wochen'; }
+		}
+		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) + ' · ' + list.length + ' Tage' };
 	}
 
-	// Abgesagte Termine ("entfällt" in beliebiger Groß-/Kleinschreibung im Titel) kommen nicht in den Ausdruck.
-	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title); }
-
-	// Termine eines Monats, gleiche Termine (Titel + Uhrzeit) zu einem Eintrag zusammengefasst.
-	Calendar.prototype.printEntries = function (y, m) {
-		var total = daysIn(y, m);
-		var first = iso(y, m, 1), last = iso(y, m, total), groups = {}, order = [];
+	// Eindeutige Termine (Titel + Uhrzeit) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
+	Calendar.prototype.printEntries = function () {
+		var from = iso(this.year, this.month, 1), groups = {}, order = [];
 		this.filtered().forEach(function (ev) {
-			if (isCancelled(ev)) { return; }
-			if (ev.endDate < first || ev.startDate > last) { return; }
-			var s = ev.startDate < first ? first : ev.startDate;
-			var e = ev.endDate > last ? last : ev.endDate;
+			if (isCancelled(ev) || ev.endDate < from) { return; }
 			var key = ev.title.toLowerCase().replace(/\s+/g, ' ').trim() + '|' + (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
 			var g = groups[key];
 			if (!g) {
-				g = groups[key] = { title: ev.title, allDay: ev.allDay, st: ev.startTime, et: ev.endTime, location: ev.location, tag: ev.tags[0] || '', days: {} };
+				g = groups[key] = { title: ev.title, allDay: ev.allDay, st: ev.startTime, et: ev.endTime, location: ev.location, tag: ev.tags[0] || '', dates: {} };
 				order.push(g);
 			}
-			for (var d = parseIso(s).d; d <= parseIso(e).d; d++) { g.days[d] = true; }
+			var t = isoToTime(ev.startDate < from ? from : ev.startDate), end = isoToTime(ev.endDate);
+			for (; t <= end; t += DAY) { g.dates[timeToIso(t)] = true; }
 		});
-		order.forEach(function (g) {
-			g.list = Object.keys(g.days).map(Number).sort(function (a, b) { return a - b; });
-		});
+		order.forEach(function (g) { g.list = Object.keys(g.dates).sort(); });
 		order.sort(function (a, b) {
-			return (a.list[0] - b.list[0]) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0)) || a.title.localeCompare(b.title, 'de');
+			return (a.list[0] < b.list[0] ? -1 : (a.list[0] > b.list[0] ? 1 : 0)) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0)) || a.title.localeCompare(b.title, 'de');
 		});
 		return order;
 	};
 
 	Calendar.prototype.buildPrintHtml = function () {
 		var self = this;
-		// Vom angezeigten Monat an alle Monate bis zum letzten Termin (höchstens 24), je Monat ein Abschnitt.
-		var lastDate = '';
-		this.filtered().forEach(function (ev) { if (!isCancelled(ev) && ev.endDate > lastDate) { lastDate = ev.endDate; } });
-		var endP = lastDate ? parseIso(lastDate) : { y: this.year, m: this.month };
-		var sections = [], total = 0, y = this.year, m = this.month, guard = 0;
-		while ((y < endP.y || (y === endP.y && m <= endP.m)) && guard++ < 24) {
-			var entries = this.printEntries(y, m);
-			if (entries.length) { sections.push({ y: y, m: m, entries: entries }); total += entries.length; }
-			m++;
-			if (m > 11) { m = 0; y++; }
-		}
+		var entries = this.printEntries();
 		var heading = 'ab ' + MONTHS[this.month] + ' ' + this.year;
-		var body = sections.map(function (s) {
-			var rows = s.entries.map(function (g) {
-				var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
-				var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
-				return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
-					(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
-					'<td class="time">' + esc(time) + '</td><td>' + esc(daysText(s.y, s.m, g.list)) + '</td></tr>';
-			}).join('');
-			return '<h2>' + esc(MONTHS[s.m] + ' ' + s.y) + '</h2><table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>';
+		var lastDay = '';
+		var rows = entries.map(function (g) {
+			if (g.list[g.list.length - 1] > lastDay) { lastDay = g.list[g.list.length - 1]; }
+			var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
+			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
+			var dt = datesText(g.list);
+			return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
+				(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
+				'<td class="time">' + esc(time) + '</td><td class="days"><div>' + esc(dt.main) + '</div>' +
+				(dt.sub ? '<div class="loc">' + esc(dt.sub) + '</div>' : '') + '</td></tr>';
 		}).join('');
-		var sub = total + (total === 1 ? ' Termin' : ' Termine') + ' in ' + sections.length + (sections.length === 1 ? ' Monat' : ' Monaten') +
+		var n = entries.length;
+		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
+			(n ? ' · Zeitraum ' + printDate(iso(this.year, this.month, 1)) + ' – ' + printDate(lastDay) : '') +
 			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso) + ' · ohne abgesagte Termine';
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
-			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 4mm}' +
-			'h2{font-size:14pt;margin:6mm 0 2mm;padding-bottom:1mm;border-bottom:1pt solid #000;page-break-after:avoid;break-after:avoid}' +
+			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 5mm}' +
 			'table{width:100%;border-collapse:collapse}' +
 			'th{text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#555;border-bottom:1.5pt solid #000;padding:1.5mm 2mm}' +
 			'td{padding:1.8mm 2mm;border-bottom:.5pt solid #bbb;vertical-align:top}' +
 			'tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
-			'td.t{width:46%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:17%;white-space:nowrap}' +
+			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
 			'.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
-			(sections.length ? body : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
+			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
 			'</body></html>';
 	};
 
