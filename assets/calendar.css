@@ -17,6 +17,14 @@
 	line-height: 1.35;
 }
 
+/* Theme-Stile für Schaltflächen/Felder (Großbuchstaben, Laufweite) neutralisieren */
+html body .gcalmk button, html body .gcalmk input, html body .gcalmk-dialog button { text-transform: none; letter-spacing: normal; }
+
+/* Feste Schrift (unabhängig vom Theme, keine Webfonts von Google): die Schrift der Seite, sonst Systemschriften */
+html body .gcalmk, html body .gcalmk *, html body .gcalmk-dialog, html body .gcalmk-dialog * {
+	font-family: fira_sans, "Fira Sans", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
 /* Volle Fensterbreite, auch innerhalb schmaler Theme-Inhaltsspalten */
 html body .gcalmk.gcalmk-full {
 	/* Randausgleich statt left: unabhängig davon, wie das Theme den Inhalt zentriert. */

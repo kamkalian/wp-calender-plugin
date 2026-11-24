@@ -76,7 +76,31 @@
 	// Abstand des fixierten Kopfbereichs zum oberen Fensterrand (Shortcode-Attribut oben="70", z. B. bei festem Theme-Header).
 	function root_top(root) {
 		var v = parseInt(root.getAttribute('data-top'), 10);
-		return isNaN(v) ? null : Math.max(0, v);
+		if (!isNaN(v)) { return Math.max(0, v); }
+		// Ohne Angabe: Unterkante eines festen/mitlaufenden Theme-Headers am oberen Rand verwenden.
+		var best = 0;
+		try {
+			var hs = document.querySelectorAll('header, #site-header, #masthead, .site-header');
+			for (var i = 0; i < hs.length; i++) {
+				var cs = window.getComputedStyle(hs[i]);
+				if (cs.position !== 'fixed' && cs.position !== 'sticky') { continue; }
+				var r = hs[i].getBoundingClientRect();
+				if (r.height > 0 && r.top <= 1 && r.top > -r.height && r.bottom > best && r.bottom < 300) { best = Math.round(r.bottom); }
+			}
+		} catch (e) { /* ignorieren */ }
+		return best > 0 ? best : null;
+	}
+
+	// "overflow: hidden" an übergeordneten Elementen verhindert position: sticky; "clip" schneidet gleich ab, ohne einen Scrollbereich zu bilden.
+	function unclip(root) {
+		try {
+			for (var p = root.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+				var cs = window.getComputedStyle(p);
+				if (cs.overflowX === 'hidden' || cs.overflowY === 'hidden') {
+					p.style.setProperty('overflow', 'clip', 'important');
+				}
+			}
+		} catch (e) { /* ignorieren */ }
 	}
 
 	// "a, b" -> ['a', 'b']
@@ -179,6 +203,7 @@
 		var self = this;
 		this.root.textContent = '';
 		this.root.classList.add('gcalmk-ready');
+		unclip(this.root);
 
 
 		// Kopfbereich (Tags, Monatsnavigation, Suche, Wochentage): scrollt zuerst bis zum oberen Seitenrand
