@@ -267,6 +267,7 @@
 			self.query = '';
 			if (self.input) { self.input.value = ''; }
 			self.render();
+			self.scrollTo(self.body.querySelector('.gcalmk-is-today')); // zum heutigen Tag springen
 		});
 		this.title = el('h3', 'gcalmk-title');
 		this.title.setAttribute('aria-live', 'polite');
@@ -680,6 +681,21 @@
 		this.year += Math.floor(m / 12);
 		this.month = ((m % 12) + 12) % 12;
 		this.render();
+		this.scrollTo(null); // nach dem Monatswechsel ganz nach oben (zum Kalenderanfang)
+	};
+
+	// Scrollt zum Element (unterhalb des mitlaufenden Kopfbereichs) bzw. ohne Element zum Anfang des Kalenders (nur wenn man schon weiter unten ist).
+	Calendar.prototype.scrollTo = function (target) {
+		var gk = parseInt(window.getComputedStyle(this.root).getPropertyValue('--gk-top'), 10) || 0;
+		var y;
+		if (target) {
+			y = target.getBoundingClientRect().top + window.pageYOffset - gk - this.sticky.offsetHeight - 6;
+		} else {
+			y = this.root.getBoundingClientRect().top + window.pageYOffset - gk;
+			if (window.pageYOffset <= y) { return; } // Kalenderanfang ist bereits sichtbar
+		}
+		var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		window.scrollTo({ top: Math.max(0, y), behavior: calm ? 'auto' : 'smooth' });
 	};
 
 	// Bereiche als Dropdown: nur Bereiche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen.
