@@ -289,16 +289,18 @@
 		var alnum = function (s) { return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); };
 		var clean = function (s) { return s.replace(/^[\s\-–—:,;!(]+|[\s\-–—:,;!()]+$/g, ''); };
 		var up = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
-		var m = t.match(/geschlossen|entf(?:ä|ae)llt/i);
+		var m = t.match(/geschlossen|ge(?:ö|oe)ffnet|entf(?:ä|ae)llt/i);
 		if (m) {
-			var flag = /geschlossen/i.test(m[0]) ? 'geschlossen' : 'entfällt';
+			var w = m[0].toLowerCase();
+			var closed = w === 'geschlossen';
 			var before = t.slice(0, m.index), after = t.slice(m.index + m[0].length);
 			var base = alnum(before) ? before : after;
 			if (alnum(base)) {
-				return { key: alnum(base) + '|' + flag, display: up(clean(base)) + ' ' + flag.toUpperCase() };
+				// "Geschäftsstelle geöffnet" und "Geschäftsstelle geschlossen" gehören zum selben Eintrag "Geschäftsstelle".
+				return { key: alnum(base) + (/^entf/.test(w) ? '|entfällt' : ''), display: up(clean(base)), closed: closed };
 			}
 		}
-		return { key: alnum(t), display: up(t) };
+		return { key: alnum(t), display: up(t), closed: false };
 	}
 
 	// Eindeutige Termine (nach Titel) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
@@ -313,10 +315,10 @@
 				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
 				order.push(g);
 			}
-			var sk = ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime;
+			var sk = (tk.closed ? 'zu|' : '') + (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
 			var s = g.slots[sk];
 			if (!s) {
-				s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, dates: {} };
+				s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, closed: tk.closed, dates: {} };
 				g.slotOrder.push(s);
 			}
 			var t = isoToTime(ev.startDate < from ? from : ev.startDate), end = isoToTime(ev.endDate);
@@ -325,7 +327,8 @@
 		order.forEach(function (g) {
 			g.slotOrder.forEach(function (s) { s.list = Object.keys(s.dates).sort(); });
 			g.slotOrder.sort(function (a, b) {
-				return (a.list[0] < b.list[0] ? -1 : (a.list[0] > b.list[0] ? 1 : 0)) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0));
+				// "geschlossen" steht hinter den regulären Zeiten
+				return ((a.closed ? 1 : 0) - (b.closed ? 1 : 0)) || (a.list[0] < b.list[0] ? -1 : (a.list[0] > b.list[0] ? 1 : 0)) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0));
 			});
 			g.first = g.slotOrder.reduce(function (m, s) { return s.list[0] < m ? s.list[0] : m; }, g.slotOrder[0].list[0]);
 		});
@@ -352,7 +355,9 @@
 					cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
 						(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
 				}
-				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + esc(time) + '</td><td class="days">' + esc(dt.main) +
+				// geschlossene Tage: "GESCHLOSSEN" (bei Uhrzeit darunter)
+				var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' + (s.allDay ? '' : '<div class="loc">' + esc(time) + '</div>') : esc(time);
+				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + esc(dt.main) +
 					(dt.sub ? ' <span class="loc">· ' + esc(dt.sub) + '</span>' : '') + '</td></tr>';
 			}).join('');
 			return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
@@ -371,7 +376,7 @@
 			'tr.more td.time,tr.more td.days{border-bottom:.5pt dotted #ccc}' +
 			'tbody{page-break-inside:avoid;break-inside:avoid}tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
 			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
-			'.empty{margin:10mm 0;color:#555}';
+			'.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
 			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
