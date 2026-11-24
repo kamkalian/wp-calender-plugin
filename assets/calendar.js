@@ -276,7 +276,7 @@
 			for (i = 2; even && i < list.length; i++) { even = (isoToTime(list[i]) - isoToTime(list[i - 1])) / DAY === gap; }
 			if (even) { main += gap === 7 ? ' wöchentlich' : ' alle ' + (gap / 7) + ' Wochen'; }
 		}
-		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) + ' · ' + list.length + ' Tage' };
+		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) };
 	}
 
 	// Eindeutige Termine (Titel + Uhrzeit) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
@@ -318,7 +318,7 @@
 		var n = entries.length;
 		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(iso(this.year, this.month, 1)) + ' – ' + printDate(lastDay) : '') +
-			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso) + ' · ohne abgesagte Termine';
+			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
