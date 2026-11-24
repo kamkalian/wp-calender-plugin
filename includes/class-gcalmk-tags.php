@@ -4,7 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tags werden in den Einstellungen manuell angelegt (Name, Farbe, optional Bereich im Ausdruck).
+ * Tags werden in den Einstellungen manuell angelegt (Name, Farbe, Bereich als Freitext). Ein leerer Bereich bedeutet:
+ * der Tag filtert nur im Kalender, der Termin kommt nicht in den Ausdruck.
  * Ein Termin bekommt einen Tag, wenn der Tag-Name im Titel als ganzes Wort vorkommt (Groß-/Kleinschreibung egal,
  * "Cafe" passt zu "Cafe am Markt", nicht zu "SonntagsCafe"). Ein Termin kann mehrere Tags haben. Der Tag, der im Titel zuerst vorkommt und einen
  * Bereich hat, entscheidet über den Bereich im Ausdruck (ein Termin steht nur in einem Bereich).
@@ -56,17 +57,6 @@ class GCalMK_Tags {
 		return mb_strtolower( trim( preg_replace( '/\s+/u', ' ', (string) $s ) ), 'UTF-8' );
 	}
 
-	/** Bereiche des Ausdrucks (Überschriften) – Standard, solange nichts gespeichert ist. */
-	public static function default_areas() {
-		return array(
-			'Treffen und Angebote',
-			'Selbsthilfegruppen und Beratungen',
-			'Unsere Jugendangebote',
-			'Sonstige Veranstaltungen',
-			'Tagesfahrten / Wanderungen / Urlaub',
-		);
-	}
-
 	/** Gespeicherte Tag-Einstellungen (norm => name, color, area). */
 	public static function config() {
 		$d = get_option( self::OPT, null );
@@ -107,6 +97,19 @@ class GCalMK_Tags {
 		);
 	}
 
+	/** Bereiche des Ausdrucks in der Reihenfolge der Tag-Tabelle (norm => Anzeigename, erste Schreibweise). */
+	public static function areas() {
+		$out = array();
+		foreach ( self::config() as $c ) {
+			$a = trim( preg_replace( '/\s+/u', ' ', isset( $c['area'] ) ? (string) $c['area'] : '' ) );
+			$n = self::norm( $a );
+			if ( '' !== $n && ! isset( $out[ $n ] ) ) {
+				$out[ $n ] = $a;
+			}
+		}
+		return $out;
+	}
+
 	/** Anzahl der Termine je Tag (Schlüssel => Anzahl), für die Einstellungsseite. */
 	public static function counts( $events, $cfg ) {
 		$out = array();
@@ -124,10 +127,7 @@ class GCalMK_Tags {
 	 */
 	public static function apply( $events ) {
 		$cfg   = self::config();
-		$areas = array();
-		foreach ( GCalMK_Settings::get()['print_areas'] as $a ) {
-			$areas[ self::norm( $a ) ] = $a;
-		}
+		$areas = self::areas();
 		$colors = array();
 		foreach ( $events as $i => $ev ) {
 			$tags = array();
@@ -138,7 +138,7 @@ class GCalMK_Tags {
 				$colors[ $c['name'] ] = $c['color'];
 				$an              = self::norm( isset( $c['area'] ) ? $c['area'] : '' );
 				if ( '' === $area && '' !== $an && isset( $areas[ $an ] ) ) {
-					$area = $areas[ $an ]; // das erste Vorkommen mit Bereich entscheidet
+					$area = $areas[ $an ]; // das erste Vorkommen mit Bereich entscheidet (einheitliche Schreibweise)
 				}
 			}
 			$events[ $i ]['tags'] = $tags;

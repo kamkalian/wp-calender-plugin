@@ -33,12 +33,8 @@ class GCalMK_Settings {
 				'calendar_id'    => '',
 				'months_back'    => 3,
 				'months_forward' => 12,
-				'print_areas'    => GCalMK_Tags::default_areas(),
 			)
 		);
-		if ( ! is_array( $s['print_areas'] ) ) {
-			$s['print_areas'] = GCalMK_Tags::default_areas();
-		}
 		if ( defined( 'GCALMK_API_KEY' ) && '' !== GCALMK_API_KEY ) {
 			$s['api_key'] = (string) GCALMK_API_KEY;
 		}
@@ -87,24 +83,7 @@ class GCalMK_Settings {
 
 		$cal = isset( $in['calendar_id'] ) ? trim( sanitize_text_field( $in['calendar_id'] ) ) : '';
 
-		// Bereiche des Ausdrucks: ein Name pro Zeile (WordPress ruft die Bereinigung teils zweimal auf, daher auch Arrays).
-		if ( isset( $in['print_areas'] ) ) {
-			$raw_a = is_array( $in['print_areas'] ) ? $in['print_areas'] : preg_split( '/\r\n|\r|\n/', (string) $in['print_areas'] );
-		} elseif ( isset( $old['print_areas'] ) && is_array( $old['print_areas'] ) ) {
-			$raw_a = $old['print_areas'];
-		} else {
-			$raw_a = GCalMK_Tags::default_areas();
-		}
-		$areas = array();
-		foreach ( $raw_a as $a ) {
-			$a = mb_substr( trim( sanitize_text_field( (string) $a ) ), 0, 80, 'UTF-8' );
-			if ( '' !== $a && ! isset( $areas[ mb_strtolower( $a, 'UTF-8' ) ] ) ) {
-				$areas[ mb_strtolower( $a, 'UTF-8' ) ] = $a;
-			}
-		}
-
 		return array(
-			'print_areas'    => array_slice( array_values( $areas ), 0, 20 ),
 			'api_key'        => $key,
 			'calendar_id'    => $cal,
 			'months_back'    => max( 0, min( 24, (int) ( isset( $in['months_back'] ) ? $in['months_back'] : 3 ) ) ),
@@ -184,24 +163,10 @@ class GCalMK_Settings {
 				'count' => isset( $counts[ $n ] ) ? $counts[ $n ] : 0,
 			);
 		}
-		uasort(
-			$rows,
-			function ( $a, $b ) {
-				return ( $b['count'] <=> $a['count'] ) ? ( $b['count'] <=> $a['count'] ) : strnatcasecmp( $a['name'], $b['name'] );
-			}
-		);
 		$color_options = function ( $selected ) use ( $palette ) {
 			$html = '';
 			foreach ( $palette as $hex => $name ) {
 				$html .= '<option value="' . esc_attr( $hex ) . '" style="color:' . esc_attr( $hex ) . '"' . selected( $selected, $hex, false ) . '>■ ' . esc_html( $name ) . '</option>';
-			}
-			return $html;
-		};
-		$area_options  = function ( $selected ) use ( $s ) {
-			$html = '<option value="">– kein Bereich –</option>';
-			$sel  = GCalMK_Tags::norm( $selected );
-			foreach ( $s['print_areas'] as $a ) {
-				$html .= '<option value="' . esc_attr( $a ) . '"' . selected( $sel, GCalMK_Tags::norm( $a ), false ) . '>' . esc_html( $a ) . '</option>';
 			}
 			return $html;
 		};
@@ -253,22 +218,21 @@ class GCalMK_Settings {
 							<input type="number" min="1" max="36" name="<?php echo esc_attr( self::OPTION ); ?>[months_forward]" value="<?php echo esc_attr( $s['months_forward'] ); ?>" class="small-text"> Monate voraus
 						</td>
 					</tr>
-					<tr>
-						<th scope="row"><label for="gcalmk_areas">Bereiche im Ausdruck</label></th>
-						<td>
-							<textarea id="gcalmk_areas" name="<?php echo esc_attr( self::OPTION ); ?>[print_areas]" rows="6" class="large-text"><?php echo esc_textarea( implode( "\n", $s['print_areas'] ) ); ?></textarea>
-							<p class="description">Überschriften des Ausdrucks, ein Name pro Zeile, in dieser Reihenfolge. Welche Termine in welchen Bereich kommen, steuern die Tags (siehe unten).</p>
-						</td>
-					</tr>
 				</table>
 
 				<h2>Tags</h2>
 				<p class="description" style="max-width:900px">
 					Tags legst du hier <strong>manuell</strong> an. Ein Termin bekommt einen Tag, wenn der Tag-Name <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, nur als <strong>ganzes Wort</strong>: „Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
-					Der Tag, der im Titel <strong>zuerst</strong> vorkommt und einen Bereich hat, entscheidet über den Bereich im Ausdruck – ein Termin steht nur in einem Bereich. Tags ohne Bereich dienen nur als Filter im Kalender. <strong>Gedruckt werden nur Termine mit einem Bereich.</strong>
+					Der Bereich ist ein <strong>Textfeld</strong>: Der Text ist die Überschrift im Ausdruck, gleiche Texte (Groß-/Kleinschreibung egal) bilden einen Bereich. Die Reihenfolge der Bereiche entspricht der Reihenfolge dieser Tabelle. Der Tag, der im Titel <strong>zuerst</strong> vorkommt und einen Bereich hat, entscheidet; ein Termin steht nur in einem Bereich.
+					<strong>Ist das Feld leer, wird der Termin nicht gedruckt</strong> (der Tag filtert dann nur im Kalender).
 				</p>
+				<datalist id="gcalmk-arealist">
+					<?php foreach ( GCalMK_Tags::areas() as $area_name ) : ?>
+						<option value="<?php echo esc_attr( $area_name ); ?>">
+					<?php endforeach; ?>
+				</datalist>
 				<table class="widefat striped" id="gcalmk-tagtable" style="max-width:920px">
-					<thead><tr><th style="width:150px">Farbe</th><th>Tag (Wort im Titel)</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
+					<thead><tr><th style="width:150px">Farbe</th><th>Tag (Wort im Titel)</th><th style="width:300px">Bereich im Ausdruck (Text)</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
 					<tbody>
 					<?php $i = 0; foreach ( $rows as $n => $r ) : ?>
 						<tr>
@@ -276,7 +240,7 @@ class GCalMK_Settings {
 							<td>
 								<input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $r['name'] ); ?>">
 							</td>
-							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $area_options( $r['area'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td><input type="text" list="gcalmk-arealist" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" value="<?php echo esc_attr( $r['area'] ); ?>" placeholder="leer = nicht im Ausdruck" aria-label="Bereich für <?php echo esc_attr( $r['name'] ); ?>"></td>
 							<td><?php echo (int) $r['count']; ?></td>
 							<td style="text-align:center"><input type="checkbox" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][del]" value="1" aria-label="<?php echo esc_attr( $r['name'] ); ?> entfernen"></td>
 						</tr>
@@ -286,7 +250,7 @@ class GCalMK_Settings {
 						<tr>
 							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( array_keys( $palette )[0] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="" placeholder="Neuer Tag"></td>
-							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+							<td><input type="text" list="gcalmk-arealist" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" value="" placeholder="leer = nicht im Ausdruck" aria-label="Bereich für neuen Tag"></td>
 							<td>–</td>
 							<td></td>
 						</tr>
@@ -297,7 +261,7 @@ class GCalMK_Settings {
 					<tr>
 						<td><select class="gcalmk-col" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 						<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][name]" value="" placeholder="Neuer Tag"></td>
-						<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
+						<td><input type="text" list="gcalmk-arealist" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][area]" value="" placeholder="leer = nicht im Ausdruck" aria-label="Bereich für neuen Tag"></td>
 						<td>–</td>
 						<td></td>
 					</tr>

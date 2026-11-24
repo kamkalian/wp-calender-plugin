@@ -34,7 +34,7 @@ class GCalMK_Rest {
 			array(
 				'synced' => (int) $cache['synced'],
 				'colors' => (object) $colors,
-				'areas'  => GCalMK_Settings::get()['print_areas'], // Bereiche des Ausdrucks in Druckreihenfolge
+				'areas'  => array_values( GCalMK_Tags::areas() ), // Bereiche des Ausdrucks in Druckreihenfolge (Reihenfolge der Tag-Tabelle)
 				'events' => $events,
 			)
 		);
