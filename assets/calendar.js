@@ -84,6 +84,8 @@
 		this.showSearch = root.getAttribute('data-search') !== '0';
 		this.showTags = root.getAttribute('data-tags') !== '0';
 		this.tag = root.getAttribute('data-tag') || '';
+		this.area = root.getAttribute('data-area') || ''; // gewählter Bereich (Filter)
+		this.showAreas = root.getAttribute('data-areas') !== '0';
 		this.tagsOpen = false;
 		this.tagRecurring = {};
 		this.colors = {};
@@ -122,6 +124,10 @@
 		this.sticky = el('div', 'gcalmk-sticky');
 		var stickyTop = root_top(this.root);
 		if (stickyTop !== null) { this.root.style.setProperty('--gk-top', stickyTop + 'px'); }
+		this.areaBar = el('div', 'gcalmk-areas');
+		this.areaBar.setAttribute('role', 'group');
+		this.areaBar.setAttribute('aria-label', 'Nach Bereich filtern');
+		if (this.showAreas) { this.sticky.appendChild(this.areaBar); }
 		if (this.showTags) { this.sticky.appendChild(this.tagWrap); }
 
 		var top = el('div', 'gcalmk-top');
@@ -458,7 +464,7 @@
 		var count = Object.keys(seenTitles).length;
 		var sub = count + (count === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
-			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
+			(this.area ? ' · Bereich: ' + esc(this.area) : '') + (this.tag ? ' · Tag: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
@@ -509,6 +515,12 @@
 				self.events = data.events || [];
 				self.colors = data.colors || {};
 				self.areas = data.areas || [];
+				if (self.area) {
+					// Vorgewählten Bereich (Shortcode) auf die tatsächliche Schreibweise abbilden.
+					var al = self.area.toLowerCase();
+					self.area = '';
+					self.areas.forEach(function (a) { if (a.toLowerCase() === al) { self.area = a; } });
+				}
 				self.computeTags();
 				if (self.tag) {
 					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.
@@ -520,6 +532,7 @@
 					self.tag = found;
 				}
 				self.jumpIfSingle();
+				self.renderAreas();
 				self.renderTags();
 				self.render();
 			})
@@ -536,11 +549,40 @@
 		this.render();
 	};
 
-	// Nur Tags mit mindestens einem Termin ab heute, nach Häufigkeit (künftige Termine) sortiert.
-	Calendar.prototype.computeTags = function () {
-		var counts = {}, today = this.todayIso, rec = {};
+	// Bereiche als Filter über dem Kalender: nur Bereiche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen.
+	Calendar.prototype.renderAreas = function () {
+		var self = this, today = this.todayIso, has = {};
+		this.areaBar.textContent = '';
 		this.events.forEach(function (ev) {
 			if (ev.endDate < today) { return; }
+			(ev.areas || []).forEach(function (a) { has[a] = true; });
+		});
+		var list = this.areas.filter(function (a) { return has[a]; });
+		this.areaBar.hidden = list.length === 0;
+		list.forEach(function (a) {
+			var b = el('button', 'gcalmk-areachip', a);
+			b.type = 'button';
+			b.setAttribute('aria-pressed', self.area === a ? 'true' : 'false');
+			b.addEventListener('click', function () { self.setArea(self.area === a ? '' : a); });
+			self.areaBar.appendChild(b);
+		});
+	};
+
+	Calendar.prototype.setArea = function (value) {
+		this.area = value;
+		this.computeTags();
+		this.jumpIfSingle();
+		this.renderAreas();
+		this.renderTags();
+		this.render();
+	};
+
+	// Nur Tags mit mindestens einem Termin ab heute, nach Häufigkeit (künftige Termine) sortiert.
+	Calendar.prototype.computeTags = function () {
+		var counts = {}, today = this.todayIso, rec = {}, area = this.area;
+		this.events.forEach(function (ev) {
+			if (ev.endDate < today) { return; }
+			if (area && (ev.areas || []).indexOf(area) === -1) { return; } // nur Tags des gewählten Bereichs
 			ev.tags.forEach(function (t) {
 				counts[t] = (counts[t] || 0) + 1;
 				if (ev.recurring) { rec[t] = true; } // Tag mit wiederkehrenden Terminen
@@ -636,9 +678,9 @@
 	};
 
 	Calendar.prototype.filtered = function () {
-		var tag = this.tag;
+		var tag = this.tag, area = this.area;
 		return this.events.filter(function (ev) {
-			return !tag || ev.tags.indexOf(tag) !== -1;
+			return (!tag || ev.tags.indexOf(tag) !== -1) && (!area || (ev.areas || []).indexOf(area) !== -1);
 		});
 	};
 

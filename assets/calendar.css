@@ -34,6 +34,20 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 .gcalmk *, .gcalmk *::before, .gcalmk *::after { box-sizing: border-box; }
 .gcalmk button { font: inherit; cursor: pointer; }
 
+/* Bereichs-Filter über den Tags */
+.gcalmk-areas { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.gcalmk-areas[hidden] { display: none; }
+.gcalmk-areachip {
+	padding: 6px 14px; border: 1px solid var(--gk-border); border-radius: 4px; background: #fff; color: var(--gk-text); font-weight: 600;
+}
+.gcalmk-areachip:hover { border-color: var(--gk-accent); }
+.gcalmk-areachip[aria-pressed="true"] { background: var(--gk-accent); border-color: var(--gk-accent); color: #fff; }
+/* Handy: eine wischbare Zeile statt hoher Stapel */
+@media (max-width: 640px) {
+	.gcalmk-areas { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+	.gcalmk-areachip { flex: none; white-space: nowrap; }
+}
+
 /* Tag-Filter */
 .gcalmk-tags { margin: 0 0 10px; }
 .gcalmk-tags[hidden], .gcalmk-tagpanel[hidden] { display: none; }
