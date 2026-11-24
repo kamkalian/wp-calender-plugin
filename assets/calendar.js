@@ -252,31 +252,50 @@
 		return wds.map(function (k) { return WDAYS[k]; }).join('/');
 	}
 
-	// Text für die Spalte "Tage": wenige Einzeltage ausgeschrieben, sonst Wochentage + Zeitraum + Anzahl.
+	// Kurzes Datum "03.06."
+	function shortDay(s) { var p = parseIso(s); return pad(p.d) + '.' + pad(p.m + 1) + '.'; }
+
+	// Text für die Spalte "Tage":
+	//  - einzelner Tag: "So 24.01.27"
+	//  - immer wöchentlich (mind. 85 % der Abstände je Wochentag sind genau 7 Tage, Ferien/Feiertage stören nicht):
+	//    Wochentag(e) und Zeitraum in einer Zeile, z. B. "Mo–Fr · 02.11.26 – 30.11.27"
+	//  - sonst (monatlich, alle 2 Wochen, unregelmäßig): die einzelnen Tage mit kurzem Datum, nach Jahren getrennt,
+	//    z. B. "2027: 07.01., 04.02., 04.03."
+	// Gibt fertiges (bereits maskiertes) HTML zurück.
 	function datesText(list) {
-		var runs = [], i = 0, j;
-		while (i < list.length) {
-			j = i;
-			while (j + 1 < list.length && isoToTime(list[j + 1]) - isoToTime(list[j]) === DAY) { j++; }
-			runs.push([list[i], list[j]]);
-			i = j + 1;
+		if (list.length === 1) { return { html: esc(WDAYS[wdOf(list[0])] + ' ' + printDate(list[0])) }; }
+
+		var byWd = {}, tot = 0, w7 = 0;
+		list.forEach(function (s) { var k = wdOf(s); (byWd[k] = byWd[k] || []).push(s); });
+		Object.keys(byWd).forEach(function (k) {
+			var a = byWd[k];
+			for (var i = 1; i < a.length; i++) {
+				tot++;
+				if (isoToTime(a[i]) - isoToTime(a[i - 1]) === 7 * DAY) { w7++; }
+			}
+		});
+		if (tot >= 3 && w7 / tot >= 0.85) {
+			var wds = Object.keys(byWd).map(Number).sort(function (a, b) { return a - b; });
+			return { html: esc(weekdayText(wds)) + ' · ' + esc(printDate(list[0]) + ' – ' + printDate(list[list.length - 1])) };
 		}
-		if (runs.length <= 4) {
-			return { main: runs.map(function (r) {
-				return r[0] === r[1] ? WDAYS[wdOf(r[0])] + ' ' + printDate(r[0]) : printDate(r[0]) + ' – ' + printDate(r[1]);
-			}).join(', '), sub: '' };
-		}
-		var seen = {}, wds = [];
-		list.forEach(function (s) { var k = wdOf(s); if (!seen[k]) { seen[k] = true; wds.push(k); } });
-		wds.sort(function (a, b) { return a - b; });
-		var main = weekdayText(wds);
-		// gleichmäßiger Abstand bei einem Wochentag: wöchentlich / alle n Wochen
-		if (wds.length === 1) {
-			var gap = (isoToTime(list[1]) - isoToTime(list[0])) / DAY, even = gap % 7 === 0;
-			for (i = 2; even && i < list.length; i++) { even = (isoToTime(list[i]) - isoToTime(list[i - 1])) / DAY === gap; }
-			if (even) { main += gap === 7 ? ' wöchentlich' : ' alle ' + (gap / 7) + ' Wochen'; }
-		}
-		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) };
+
+		var years = {}, order = [];
+		list.forEach(function (s) {
+			var y = s.slice(0, 4);
+			if (!years[y]) { years[y] = []; order.push(y); }
+			years[y].push(s);
+		});
+		return { html: order.map(function (y) {
+			var a = years[y], runs = [], i = 0, j;
+			while (i < a.length) {
+				j = i;
+				while (j + 1 < a.length && isoToTime(a[j + 1]) - isoToTime(a[j]) === DAY) { j++; }
+				runs.push([a[i], a[j]]);
+				i = j + 1;
+			}
+			var text = runs.map(function (r) { return r[0] === r[1] ? shortDay(r[0]) : shortDay(r[0]) + '–' + shortDay(r[1]); }).join(', ');
+			return '<div><span class="yr">' + esc(y) + ':</span> ' + esc(text) + '</div>';
+		}).join('') };
 	}
 
 	// Titel für den Ausdruck: gleicher Eintrag trotz Zahl am Anfang ("10. "), Emojis, Satzzeichen oder Groß-/Kleinschreibung.
@@ -358,8 +377,7 @@
 				}
 				// geschlossene Tage: nur "GESCHLOSSEN", keine Uhrzeit
 				var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' : esc(time);
-				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + esc(dt.main) +
-					(dt.sub ? ' <span class="loc">· ' + esc(dt.sub) + '</span>' : '') + '</td></tr>';
+				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + dt.html + '</td></tr>';
 			}).join('');
 			return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
 		}).join('');
@@ -378,7 +396,7 @@
 			'tbody{page-break-inside:avoid;break-inside:avoid}tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
 			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
 			'.days .loc,.time .loc{font-size:inherit;color:inherit}' + // Datum, Uhrzeit und Zeitbereiche gleich groß
-			'.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
+			'.yr{font-weight:700}.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
 			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
