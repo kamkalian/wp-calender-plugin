@@ -267,11 +267,15 @@
 		}).join(', ');
 	}
 
-	// Termine des Monats, gleiche Termine (Titel + Uhrzeit) zu einem Eintrag zusammengefasst.
-	Calendar.prototype.printEntries = function () {
-		var y = this.year, m = this.month, total = daysIn(y, m);
+	// Abgesagte Termine ("entfällt" in beliebiger Groß-/Kleinschreibung im Titel) kommen nicht in den Ausdruck.
+	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title); }
+
+	// Termine eines Monats, gleiche Termine (Titel + Uhrzeit) zu einem Eintrag zusammengefasst.
+	Calendar.prototype.printEntries = function (y, m) {
+		var total = daysIn(y, m);
 		var first = iso(y, m, 1), last = iso(y, m, total), groups = {}, order = [];
 		this.filtered().forEach(function (ev) {
+			if (isCancelled(ev)) { return; }
 			if (ev.endDate < first || ev.startDate > last) { return; }
 			var s = ev.startDate < first ? first : ev.startDate;
 			var e = ev.endDate > last ? last : ev.endDate;
@@ -293,22 +297,36 @@
 	};
 
 	Calendar.prototype.buildPrintHtml = function () {
-		var self = this, y = this.year, m = this.month;
-		var entries = this.printEntries();
-		var heading = MONTHS[m] + ' ' + y;
-		var rows = entries.map(function (g) {
-			var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
-			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
-			return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
-				(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
-				'<td class="time">' + esc(time) + '</td><td>' + esc(daysText(y, m, g.list)) + '</td></tr>';
+		var self = this;
+		// Vom angezeigten Monat an alle Monate bis zum letzten Termin (höchstens 24), je Monat ein Abschnitt.
+		var lastDate = '';
+		this.filtered().forEach(function (ev) { if (!isCancelled(ev) && ev.endDate > lastDate) { lastDate = ev.endDate; } });
+		var endP = lastDate ? parseIso(lastDate) : { y: this.year, m: this.month };
+		var sections = [], total = 0, y = this.year, m = this.month, guard = 0;
+		while ((y < endP.y || (y === endP.y && m <= endP.m)) && guard++ < 24) {
+			var entries = this.printEntries(y, m);
+			if (entries.length) { sections.push({ y: y, m: m, entries: entries }); total += entries.length; }
+			m++;
+			if (m > 11) { m = 0; y++; }
+		}
+		var heading = 'ab ' + MONTHS[this.month] + ' ' + this.year;
+		var body = sections.map(function (s) {
+			var rows = s.entries.map(function (g) {
+				var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
+				var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
+				return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
+					(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
+					'<td class="time">' + esc(time) + '</td><td>' + esc(daysText(s.y, s.m, g.list)) + '</td></tr>';
+			}).join('');
+			return '<h2>' + esc(MONTHS[s.m] + ' ' + s.y) + '</h2><table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>';
 		}).join('');
-		var sub = entries.length + (entries.length === 1 ? ' Termin' : ' verschiedene Termine') +
-			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
+		var sub = total + (total === 1 ? ' Termin' : ' Termine') + ' in ' + sections.length + (sections.length === 1 ? ' Monat' : ' Monaten') +
+			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso) + ' · ohne abgesagte Termine';
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
-			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 5mm}' +
+			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 4mm}' +
+			'h2{font-size:14pt;margin:6mm 0 2mm;padding-bottom:1mm;border-bottom:1pt solid #000;page-break-after:avoid;break-after:avoid}' +
 			'table{width:100%;border-collapse:collapse}' +
 			'th{text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#555;border-bottom:1.5pt solid #000;padding:1.5mm 2mm}' +
 			'td{padding:1.8mm 2mm;border-bottom:.5pt solid #bbb;vertical-align:top}' +
@@ -317,7 +335,7 @@
 			'.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
-			(entries.length ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="empty">Keine Termine in diesem Monat.</p>') +
+			(sections.length ? body : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
 			'</body></html>';
 	};
 

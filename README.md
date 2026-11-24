@@ -34,7 +34,7 @@ Tags, Monatsnavigation, Suche und Wochentage bleiben beim Scrollen am oberen Ran
 ## Zahnrad und Drucken
 Oben rechts im Kalender stehen neben der Suche zwei Symbole:
 - **Zahnrad** (Ansicht einstellen): Erste Option „Farbige Balken anzeigen“ blendet die farbigen Linien und Punkte an den Terminen ein oder aus. Die Wahl wird im Cookie `gcalmk_prefs` (1 Jahr, nur diese Anzeige-Einstellung, keine personenbezogenen Daten) gespeichert und beim nächsten Besuch wiederhergestellt.
-- **Drucker**: Druckt den angezeigten Monat auf DIN A4 als Liste. Gleiche Termine (Titel und Uhrzeit) erscheinen nur einmal, mit allen Tagen des Monats, z. B. „Di/Do: 3., 5., 10.“ oder „2.–6., 9.–13.“. Ein gewählter Tag-Filter wird berücksichtigt; die farbigen Balken erscheinen im Ausdruck, wenn sie im Zahnrad eingeschaltet sind.
+- **Drucker**: Druckt auf DIN A4 eine Liste ab dem angezeigten Monat bis zum letzten bekannten Termin, je Monat ein Abschnitt. Gleiche Termine (Titel und Uhrzeit) erscheinen je Monat nur einmal, mit allen Tagen, z. B. „Di/Do: 3./5., 10./12.“ oder „2.–6., 9.–13.“. Termine mit „entfällt“ im Titel (egal ob groß oder klein) werden nicht gedruckt. Ein gewählter Tag-Filter wird berücksichtigt; die farbigen Balken erscheinen im Ausdruck, wenn sie im Zahnrad eingeschaltet sind.
 
 ## Heute
 Der heutige Tag ist im Raster durch Rahmen, Hintergrund und einen roten Balken mit „Heute“ hervorgehoben.
