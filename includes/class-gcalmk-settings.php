@@ -170,9 +170,9 @@ class GCalMK_Settings {
 			delete_transient( self::notice_key() );
 		}
 
-		// Tags: gespeicherte Einstellungen plus alle in den Terminen gefundenen (noch nicht eingestellten) Tags.
+		// Tags: manuell eingerichtet; die Anzahl zeigt, wie viele Termine (im Zwischenspeicher) den Tag im Titel haben.
 		$cfg      = GCalMK_Tags::config();
-		$found    = GCalMK_Tags::found( $cache['events'] );
+		$counts   = GCalMK_Tags::counts( $cache['events'], $cfg );
 		$palette  = GCalMK_Tags::palette();
 		$o_tag    = GCalMK_Tags::OPT;
 		$rows     = array();
@@ -181,20 +181,8 @@ class GCalMK_Settings {
 				'name'  => $c['name'],
 				'color' => $c['color'],
 				'area'  => isset( $c['area'] ) ? $c['area'] : '',
-				'count' => isset( $found[ $n ] ) ? $found[ $n ]['count'] : 0,
-				'new'   => false,
+				'count' => isset( $counts[ $n ] ) ? $counts[ $n ] : 0,
 			);
-		}
-		foreach ( $found as $n => $f ) {
-			if ( ! isset( $rows[ $n ] ) ) {
-				$rows[ $n ] = array(
-					'name'  => $f['name'],
-					'color' => GCalMK_Tags::fallback_color( $n ),
-					'area'  => '',
-					'count' => $f['count'],
-					'new'   => true,
-				);
-			}
 		}
 		uasort(
 			$rows,
@@ -218,7 +206,8 @@ class GCalMK_Settings {
 			return $html;
 		};
 		$with_tag = 0;
-		foreach ( $cache['events'] as $ev ) {
+		list( $tagged ) = GCalMK_Tags::apply( $cache['events'] );
+		foreach ( $tagged as $ev ) {
 			if ( ! empty( $ev['tags'] ) ) {
 				$with_tag++;
 			}
@@ -275,18 +264,17 @@ class GCalMK_Settings {
 
 				<h2>Tags</h2>
 				<p class="description" style="max-width:900px">
-					Tags schreibst du in die <strong>Beschreibung des Google-Termins</strong> in eckigen Klammern, zum Beispiel <code>[Angebot]</code> oder <code>[Selbsthilfe] [Jugend]</code>. Ein Termin kann mehrere Tags haben. Hier legst du für jeden Tag die Farbe und den Bereich im Ausdruck fest.
-					<strong>Gedruckt werden nur Termine, die mindestens einen Tag mit Bereich haben</strong>; Tags ohne Bereich filtern nur im Kalender. Ein Termin mit mehreren Bereichen steht in jedem davon. Tags, die in den Terminen vorkommen, aber noch nicht gespeichert sind, werden mit „neu“ angezeigt.
+					Tags legst du hier <strong>manuell</strong> an. Ein Termin bekommt einen Tag, wenn der Tag-Name <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, auch als Teil eines Worts: „Cafe“ passt zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
+					Der Tag, der im Titel <strong>zuerst</strong> vorkommt und einen Bereich hat, entscheidet über den Bereich im Ausdruck – ein Termin steht nur in einem Bereich. Tags ohne Bereich dienen nur als Filter im Kalender. <strong>Gedruckt werden nur Termine mit einem Bereich.</strong>
 				</p>
 				<table class="widefat striped" id="gcalmk-tagtable" style="max-width:920px">
-					<thead><tr><th style="width:150px">Farbe</th><th>Tag (ohne Klammern)</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
+					<thead><tr><th style="width:150px">Farbe</th><th>Tag (Wort im Titel)</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
 					<tbody>
 					<?php $i = 0; foreach ( $rows as $n => $r ) : ?>
 						<tr>
 							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( $r['color'] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $color_options( $r['color'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td>
 								<input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $r['name'] ); ?>">
-								<?php if ( $r['new'] ) : ?><em style="color:#996800">neu – mit „Speichern“ übernehmen</em><?php endif; ?>
 							</td>
 							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $area_options( $r['area'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td><?php echo (int) $r['count']; ?></td>
@@ -343,7 +331,7 @@ class GCalMK_Settings {
 				<tbody>
 					<tr><td>Letzte erfolgreiche Synchronisation</td><td><?php echo esc_html( self::fmt_time( $status['last_ok'] ) ); ?></td></tr>
 					<tr><td>Termine im Zwischenspeicher</td><td><?php echo esc_html( count( $cache['events'] ) ); ?></td></tr>
-					<tr><td>Termine mit Tag / verschiedene Tags</td><td><?php echo esc_html( $with_tag . ' / ' . count( $found ) ); ?></td></tr>
+					<tr><td>Termine mit Tag / eingerichtete Tags</td><td><?php echo esc_html( $with_tag . ' / ' . count( $cfg ) ); ?></td></tr>
 					<tr><td>Nächster automatischer Abruf</td><td><?php echo esc_html( self::fmt_time( $next ) ); ?></td></tr>
 					<tr><td>Letzter Fehler</td><td><?php echo $status['last_error'] ? esc_html( $status['last_error'] . ' (' . self::fmt_time( $status['error_time'] ) . ')' ) : '–'; ?></td></tr>
 				</tbody>
@@ -364,7 +352,7 @@ class GCalMK_Settings {
 			<p>Optional (Standard: volle Seitenbreite, mit <code>breite="inhalt"</code> nur Inhaltsbreite): <code>[gcal_kalender tag="Jugend"]</code> startet mit vorgewähltem Tag, <code>suche="nein"</code> blendet die Suche aus, <code>tags="nein"</code> die Tag-Leiste, <code>oben="70"</code> setzt den Abstand des fixierten Kopfbereichs (Pixel).</p>
 
 			<h2>Hinweise</h2>
-			<p>Der Kalender zeigt als Filter nur Tags, die mindestens einen Termin ab heute haben. Ein Tag, dessen Termine wiederkehrend sind (Serien-Information von Google), trägt im Kalender das Symbol „↻“. Änderungen an Farbe und Bereich wirken sofort; neue Tags in den Google-Terminen erscheinen nach dem nächsten Abruf (alle 10 Minuten).</p>
+			<p>Der Kalender zeigt als Filter nur Tags, die mindestens einen Termin ab heute haben. Ein Tag, dessen Termine wiederkehrend sind (Serien-Information von Google), trägt im Kalender das Symbol „↻“. Änderungen an Tags, Farben und Bereichen wirken sofort.</p>
 			<p class="description">Der Abruf läuft über WP-Cron alle 10 Minuten (bei Besuchen der Seite). Für exakte Takte einen Server-Cron auf <code>wp-cron.php</code> einrichten und <code>DISABLE_WP_CRON</code> setzen.</p>
 		</div>
 		<?php

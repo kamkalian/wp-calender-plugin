@@ -4,9 +4,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Tags stehen in der Beschreibung des Google-Termins in eckigen Klammern, z. B. "[Angebot] [Jugend]".
- * Ein Termin kann mehrere Tags haben. In den Einstellungen bekommt jeder Tag eine Farbe und optional einen Bereich
- * (Überschrift) für den Ausdruck. Tags ohne Bereich gibt es auch: Sie filtern nur im Kalender und kommen nicht in den Ausdruck.
+ * Tags werden in den Einstellungen manuell angelegt (Name, Farbe, optional Bereich im Ausdruck).
+ * Ein Termin bekommt einen Tag, wenn der Tag-Name im Titel vorkommt (Groß-/Kleinschreibung egal, auch als Wortteil,
+ * z. B. "Cafe" in "SonntagsCafe"). Ein Termin kann mehrere Tags haben. Der Tag, der im Titel zuerst vorkommt und einen
+ * Bereich hat, entscheidet über den Bereich im Ausdruck (ein Termin steht nur in einem Bereich).
+ * Tags ohne Bereich dienen nur als Filter im Kalender.
  *
  * Option gcalmk_tagdata:  tags => array( Tagname klein geschrieben => array( name, color, area ) )
  */
@@ -65,64 +67,61 @@ class GCalMK_Tags {
 		);
 	}
 
-	/** Vorgeschlagene Tags, solange noch nichts gespeichert wurde. */
-	public static function default_tags() {
-		$p   = array_keys( self::palette() );
-		$def = array(
-			array( 'Angebot', '#1e88e5', 'Treffen und Angebote' ),
-			array( 'Selbsthilfe', '#2e7d32', 'Selbsthilfegruppen und Beratungen' ),
-			array( 'Jugend', '#e65100', 'Unsere Jugendangebote' ),
-			array( 'Event', '#6a1b9a', 'Sonstige Veranstaltungen' ),
-			array( 'Tour', '#00897b', 'Tagesfahrten / Wanderungen / Urlaub' ),
-			array( 'Urlaub', '#c2185b', 'Tagesfahrten / Wanderungen / Urlaub' ),
-		);
-		$out = array();
-		foreach ( $def as $d ) {
-			$out[ self::norm( $d[0] ) ] = array(
-				'name'  => $d[0],
-				'color' => $d[1],
-				'area'  => $d[2],
-			);
-		}
-		return $out;
-	}
-
-	/** Gespeicherte Tag-Einstellungen (norm => name, color, area); vor dem ersten Speichern die Vorschläge. */
+	/** Gespeicherte Tag-Einstellungen (norm => name, color, area). */
 	public static function config() {
 		$d = get_option( self::OPT, null );
 		if ( is_array( $d ) && isset( $d['tags'] ) && is_array( $d['tags'] ) ) {
 			return $d['tags'];
 		}
-		return self::default_tags();
+		return array();
 	}
 
-	/** Alle Tags, die in den Terminen vorkommen: norm => array( name, count ) (Name in der ersten gefundenen Schreibweise). */
-	public static function found( $events ) {
-		$out = array();
-		foreach ( $events as $ev ) {
-			if ( empty( $ev['tags'] ) ) {
+	/**
+	 * Welche eingerichteten Tags kommen im Titel vor? Gibt die Schlüssel (klein geschrieben) zurück, nach erstem Vorkommen im Titel
+	 * sortiert (bei gleicher Stelle der längere Tag zuerst, dann die Reihenfolge der Einstellungen).
+	 */
+	public static function match( $title, $cfg ) {
+		$lc   = mb_strtolower( (string) $title, 'UTF-8' );
+		$hits = array();
+		$idx  = 0;
+		foreach ( $cfg as $n => $c ) {
+			$idx++;
+			if ( '' === $n ) {
 				continue;
 			}
-			foreach ( $ev['tags'] as $t ) {
-				$n = self::norm( $t );
-				if ( '' === $n ) {
-					continue;
-				}
-				if ( ! isset( $out[ $n ] ) ) {
-					$out[ $n ] = array(
-						'name'  => trim( preg_replace( '/\s+/u', ' ', $t ) ),
-						'count' => 0,
-					);
-				}
-				$out[ $n ]['count']++;
+			$pos = mb_strpos( $lc, $n, 0, 'UTF-8' );
+			if ( false !== $pos ) {
+				$hits[] = array( $pos, -mb_strlen( $n, 'UTF-8' ), $idx, $n );
+			}
+		}
+		usort(
+			$hits,
+			function ( $a, $b ) {
+				return ( $a[0] <=> $b[0] ) ? ( $a[0] <=> $b[0] ) : ( ( $a[1] <=> $b[1] ) ? ( $a[1] <=> $b[1] ) : ( $a[2] <=> $b[2] ) );
+			}
+		);
+		return array_map(
+			function ( $h ) {
+				return $h[3];
+			},
+			$hits
+		);
+	}
+
+	/** Anzahl der Termine je Tag (Schlüssel => Anzahl), für die Einstellungsseite. */
+	public static function counts( $events, $cfg ) {
+		$out = array();
+		foreach ( $events as $ev ) {
+			foreach ( self::match( $ev['title'], $cfg ) as $n ) {
+				$out[ $n ] = isset( $out[ $n ] ) ? $out[ $n ] + 1 : 1;
 			}
 		}
 		return $out;
 	}
 
 	/**
-	 * Wendet die Einstellungen auf die Termine an: kanonische Tag-Namen, Bereiche für den Ausdruck und Farben.
-	 * Gibt array( events, colors ) zurück (colors: Tag-Name => #rrggbb).
+	 * Wendet die Einstellungen auf die Termine an: Tags (alle zutreffenden, nach Vorkommen im Titel), der Bereich für den Ausdruck
+	 * (aus dem ersten zutreffenden Tag mit Bereich) und die Farben. Gibt array( events, colors ) zurück (colors: Tag-Name => #rrggbb).
 	 */
 	public static function apply( $events ) {
 		$cfg   = self::config();
@@ -130,38 +129,22 @@ class GCalMK_Tags {
 		foreach ( GCalMK_Settings::get()['print_areas'] as $a ) {
 			$areas[ self::norm( $a ) ] = $a;
 		}
-		$disp   = array(); // norm => Anzeigename.
 		$colors = array();
 		foreach ( $events as $i => $ev ) {
-			$tags    = array();
-			$evareas = array();
-			$seen    = array();
-			foreach ( isset( $ev['tags'] ) ? $ev['tags'] : array() as $t ) {
-				$n = self::norm( $t );
-				if ( '' === $n || isset( $seen[ $n ] ) ) {
-					continue;
+			$tags = array();
+			$area = '';
+			foreach ( self::match( $ev['title'], $cfg ) as $n ) {
+				$c               = $cfg[ $n ];
+				$tags[]          = $c['name'];
+				$colors[ $c['name'] ] = $c['color'];
+				$an              = self::norm( isset( $c['area'] ) ? $c['area'] : '' );
+				if ( '' === $area && '' !== $an && isset( $areas[ $an ] ) ) {
+					$area = $areas[ $an ]; // das erste Vorkommen mit Bereich entscheidet
 				}
-				$seen[ $n ] = true;
-				if ( isset( $cfg[ $n ] ) ) {
-					$name  = $cfg[ $n ]['name'];
-					$color = $cfg[ $n ]['color'];
-					$an    = self::norm( isset( $cfg[ $n ]['area'] ) ? $cfg[ $n ]['area'] : '' );
-					if ( '' !== $an && isset( $areas[ $an ] ) && ! in_array( $areas[ $an ], $evareas, true ) ) {
-						$evareas[] = $areas[ $an ];
-					}
-				} else {
-					if ( ! isset( $disp[ $n ] ) ) {
-						$disp[ $n ] = trim( preg_replace( '/\s+/u', ' ', $t ) );
-					}
-					$name  = $disp[ $n ];
-					$color = self::fallback_color( $n );
-				}
-				$tags[]          = $name;
-				$colors[ $name ] = $color;
 			}
 			$events[ $i ]['tags'] = $tags;
-			if ( $evareas ) {
-				$events[ $i ]['areas'] = $evareas;
+			if ( '' !== $area ) {
+				$events[ $i ]['areas'] = array( $area );
 			} else {
 				unset( $events[ $i ]['areas'] );
 			}

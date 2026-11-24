@@ -10,7 +10,7 @@ class GCalMK_Sync {
 
 	const HOOK     = 'gcalmk_sync_event';
 	const SCHEDULE = 'gcalmk_10min';
-	const CACHE_V  = 8; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
+	const CACHE_V  = 9; // Erhöhen, wenn sich das Format der Termindaten ändert: löst automatisch eine neue Synchronisation aus.
 
 	public static function init() {
 		add_filter( 'cron_schedules', array( __CLASS__, 'add_schedule' ) );
@@ -304,20 +304,6 @@ class GCalMK_Sync {
 		$title = isset( $item['summary'] ) ? (string) $item['summary'] : '';
 		$desc  = isset( $item['description'] ) ? (string) $item['description'] : '';
 
-		// Tags: alle Wörter in eckigen Klammern in der Beschreibung, z. B. "[Angebot] [Jugend]". Mehrere pro Termin möglich.
-		$tags  = array();
-		$seen  = array();
-		$plain = html_entity_decode( wp_strip_all_tags( preg_replace( '#<(?:br|/p|/div|/li)[^>]*>#i', "\n", $desc ) ), ENT_QUOTES, 'UTF-8' );
-		if ( preg_match_all( '/\[([^\[\]\r\n]{1,40})\]/u', $plain, $tm ) ) {
-			foreach ( $tm[1] as $t ) {
-				$t = trim( preg_replace( '/\s+/u', ' ', sanitize_text_field( $t ) ) );
-				$n = mb_strtolower( $t, 'UTF-8' );
-				if ( '' !== $t && ! isset( $seen[ $n ] ) ) {
-					$seen[ $n ] = true;
-					$tags[]     = $t;
-				}
-			}
-		}
 
 		$title = trim( preg_replace( '/\s+/u', ' ', $title ) );
 		if ( '' === $title ) {
@@ -340,7 +326,7 @@ class GCalMK_Sync {
 			'li'     => array(),
 		);
 		$desc    = wp_kses( $desc, $allowed, array( 'http', 'https', 'mailto', 'tel' ) );
-		$desc    = trim( preg_replace( '/\[[^\[\]\r\n<>]{1,40}\]/u', '', $desc ) ); // Tags in der Anzeige ausblenden
+		$desc    = trim( $desc );
 
 		return array(
 			'id'          => isset( $item['id'] ) ? (string) $item['id'] : md5( $title . $start_date ),
@@ -355,7 +341,6 @@ class GCalMK_Sync {
 			'link'        => isset( $item['htmlLink'] ) ? esc_url_raw( $item['htmlLink'] ) : '',
 			// Google liefert bei aufgelösten Serien die ID der Serie mit: so erkennen wir wiederkehrende Termine.
 			'recurring'   => ! empty( $item['recurringEventId'] ),
-			'tags'        => $tags,
 		);
 	}
 }
