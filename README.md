@@ -25,7 +25,7 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 ## Tags
 Tags legst du unter *Einstellungen → Google-Kalender → Tags* **manuell** an: Name, Farbe und ein Bereich für den Ausdruck (Auswahl aus den angelegten Bereichen, siehe unten).
 
-**Zuordnung über den Titel:** Ein Termin bekommt einen Tag, wenn der Tag-Name im Titel vorkommt – ohne Klammern, Groß-/Kleinschreibung egal, **nur als ganzes Wort** („Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“; Bindestriche, Leerzeichen und Klammern sind Wortgrenzen; auch mehrere Wörter wie „On Tour“ sind möglich). Ein Termin kann mehrere Tags haben (nach Vorkommen im Titel sortiert, die Linie am Termin hat die Farbe des ersten). Änderungen wirken sofort, ohne neuen Abruf.
+**Zuordnung über den Titel:** Ein Termin bekommt einen Tag, wenn eines seiner Stichwörter (mehrere mit Komma getrennt; der Tag-Name ist nur die Bezeichnung) im Titel vorkommt – ohne Klammern, Groß-/Kleinschreibung egal, **nur als ganzes Wort** („Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“; Bindestriche, Leerzeichen und Klammern sind Wortgrenzen; auch mehrere Wörter wie „On Tour“ sind möglich). Ein Termin kann mehrere Tags haben (nach Vorkommen im Titel sortiert, die Linie am Termin hat die Farbe des ersten). Änderungen wirken sofort, ohne neuen Abruf.
 
 **Bereich im Ausdruck:** Der Tag, der im Titel zuerst vorkommt und einen Bereich hat, bestimmt den Bereich; der Termin steht nur in diesem einen. **Ohne Bereich wird der Termin nicht gedruckt** – der Tag filtert dann nur im Kalender.
 

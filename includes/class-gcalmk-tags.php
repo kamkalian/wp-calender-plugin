@@ -108,12 +108,10 @@ class GCalMK_Tags {
 			if ( '' === $n ) {
 				continue;
 			}
-			// Der Tag-Name und alle weiteren Stichwörter zählen; nur als ganzes Wort: davor und danach kein Buchstabe und keine Ziffer
+			// Treffer nur als ganzes Wort: davor und danach kein Buchstabe und keine Ziffer
 			// (Bindestrich, Leerzeichen, Klammer usw. sind Wortgrenzen). Maßgeblich ist das früheste Vorkommen im Titel.
-			$words = array( $n );
-			if ( ! empty( $c['words'] ) && is_array( $c['words'] ) ) {
-				$words = array_merge( $words, $c['words'] );
-			}
+			// Nur die Stichwörter zählen; der Tag-Name ist nur die Bezeichnung. Alte Einträge ohne Stichwort-Feld: der Name ist das Stichwort.
+			$words = isset( $c['words'] ) && is_array( $c['words'] ) ? $c['words'] : array( $n );
 			$best = null;
 			foreach ( $words as $w ) {
 				$w = (string) $w;
@@ -200,7 +198,7 @@ class GCalMK_Tags {
 		$out  = array();
 		foreach ( (array) $list as $w ) {
 			$w = self::norm( mb_substr( trim( str_replace( array( '[', ']' ), '', sanitize_text_field( (string) $w ) ) ), 0, 40, 'UTF-8' ) );
-			if ( '' !== $w && $w !== $own && ! in_array( $w, $out, true ) ) {
+			if ( '' !== $w && ! in_array( $w, $out, true ) ) {
 				$out[] = $w;
 			}
 		}
@@ -297,7 +295,7 @@ class GCalMK_Tags {
 					'name'  => $name,
 					'color' => self::clean_color( isset( $row['color'] ) ? $row['color'] : '', $n ),
 					'area'  => $aid,
-					'words' => self::clean_words( isset( $row['words'] ) ? $row['words'] : '', $n ),
+					'words' => self::clean_words( isset( $row['words'] ) ? $row['words'] : $name, $n ),
 				);
 			}
 		} else {
@@ -326,7 +324,7 @@ class GCalMK_Tags {
 				'name'  => $c['name'],
 				'color' => $c['color'],
 				'area'  => isset( $areas[ $aid ] ) ? $areas[ $aid ] : '',
-				'words' => isset( $c['words'] ) && is_array( $c['words'] ) ? array_values( $c['words'] ) : array(),
+				'words' => isset( $c['words'] ) && is_array( $c['words'] ) ? array_values( $c['words'] ) : array( self::norm( $c['name'] ) ),
 			);
 		}
 		return array(
@@ -360,7 +358,7 @@ class GCalMK_Tags {
 					'name'  => (string) $t['name'],
 					'color' => isset( $t['color'] ) ? (string) $t['color'] : '',
 					'area'  => isset( $t['area'] ) ? (string) $t['area'] : '', // Name; wird in sanitize() der Nummer zugeordnet
-					'words' => isset( $t['words'] ) && is_array( $t['words'] ) ? $t['words'] : '',
+					'words' => isset( $t['words'] ) && is_array( $t['words'] ) ? $t['words'] : (string) $t['name'],
 				);
 			}
 		}
