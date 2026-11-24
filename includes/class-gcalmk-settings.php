@@ -318,17 +318,18 @@ class GCalMK_Settings {
 
 				<h2>Tags</h2>
 				<p class="description" style="max-width:900px">
-					Ein Termin bekommt einen Tag, wenn der Tag-Name <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, nur als <strong>ganzes Wort</strong>: „Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
+					Ein Termin bekommt einen Tag, wenn der Tag-Name oder eines der <strong>weiteren Stichwörter</strong> (mit Komma trennen) <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, nur als <strong>ganzes Wort</strong>: „Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
 					Der Tag, der im Titel <strong>zuerst</strong> vorkommt und einen Bereich hat, entscheidet über den Bereich im Ausdruck – ein Termin steht nur in einem Bereich.
 					<strong>Ohne Bereich wird der Termin nicht gedruckt</strong>, der Tag filtert dann nur im Kalender.
 				</p>
 				<table class="widefat striped" id="gcalmk-tagtable" style="max-width:920px">
-					<thead><tr><th style="width:150px">Farbe</th><th>Tag (Wort im Titel)</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
+					<thead><tr><th style="width:150px">Farbe</th><th>Tag-Name</th><th>Weitere Stichwörter im Titel</th><th style="width:300px">Bereich im Ausdruck</th><th style="width:80px">Termine</th><th style="width:80px">Entfernen</th></tr></thead>
 					<tbody>
 					<?php $i = 0; foreach ( $cfg as $n => $r ) : ?>
 						<tr>
 							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( $r['color'] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $color_options( $r['color'] ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="<?php echo esc_attr( $r['name'] ); ?>"></td>
+							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][words]" value="<?php echo esc_attr( ! empty( $r['words'] ) ? implode( ', ', $r['words'] ) : '' ); ?>" placeholder="z. B. Bingo, Kneipenquiz" aria-label="Weitere Stichwörter für <?php echo esc_attr( $r['name'] ); ?>"></td>
 							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für <?php echo esc_attr( $r['name'] ); ?>"><?php echo $area_options( isset( $r['area'] ) ? $r['area'] : 0 ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td><?php echo (int) ( isset( $counts[ $n ] ) ? $counts[ $n ] : 0 ); ?></td>
 							<td style="text-align:center"><input type="checkbox" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][del]" value="1" aria-label="<?php echo esc_attr( $r['name'] ); ?> entfernen"></td>
@@ -339,6 +340,7 @@ class GCalMK_Settings {
 						<tr>
 							<td><select class="gcalmk-col" style="color:<?php echo esc_attr( array_keys( $palette )[0] ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][name]" value="" placeholder="Neuer Tag"></td>
+							<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][words]" value="" placeholder="Stichwörter, Komma getrennt" aria-label="Weitere Stichwörter für neuen Tag"></td>
 							<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][<?php echo (int) $i; ?>][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( 0 ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 							<td>–</td>
 							<td></td>
@@ -350,6 +352,7 @@ class GCalMK_Settings {
 					<tr>
 						<td><select class="gcalmk-col" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][color]" aria-label="Farbe für neuen Tag"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 						<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][name]" value="" placeholder="Neuer Tag"></td>
+						<td><input type="text" class="regular-text" style="width:100%" name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][words]" value="" placeholder="Stichwörter, Komma getrennt" aria-label="Weitere Stichwörter für neuen Tag"></td>
 						<td><select name="<?php echo esc_attr( $o_tag ); ?>[rows][__I__][area]" aria-label="Bereich für neuen Tag"><?php echo $area_options( 0 ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select></td>
 						<td>–</td>
 						<td></td>

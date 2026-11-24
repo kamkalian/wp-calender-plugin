@@ -108,9 +108,24 @@ class GCalMK_Tags {
 			if ( '' === $n ) {
 				continue;
 			}
-			// nur als ganzes Wort: davor und danach kein Buchstabe und keine Ziffer (Bindestrich, Leerzeichen, Klammer usw. sind Wortgrenzen)
-			if ( preg_match( '/(?<![\p{L}\p{N}])' . preg_quote( $n, '/' ) . '(?![\p{L}\p{N}])/iu', (string) $title, $m, PREG_OFFSET_CAPTURE ) ) {
-				$hits[] = array( $m[0][1], -mb_strlen( $n, 'UTF-8' ), $idx, $n );
+			// Der Tag-Name und alle weiteren Stichwörter zählen; nur als ganzes Wort: davor und danach kein Buchstabe und keine Ziffer
+			// (Bindestrich, Leerzeichen, Klammer usw. sind Wortgrenzen). Maßgeblich ist das früheste Vorkommen im Titel.
+			$words = array( $n );
+			if ( ! empty( $c['words'] ) && is_array( $c['words'] ) ) {
+				$words = array_merge( $words, $c['words'] );
+			}
+			$best = null;
+			foreach ( $words as $w ) {
+				$w = (string) $w;
+				if ( '' !== $w && preg_match( '/(?<![\p{L}\p{N}])' . preg_quote( $w, '/' ) . '(?![\p{L}\p{N}])/iu', (string) $title, $m, PREG_OFFSET_CAPTURE ) ) {
+					$cand = array( $m[0][1], -mb_strlen( $w, 'UTF-8' ) );
+					if ( null === $best || $cand < $best ) {
+						$best = $cand;
+					}
+				}
+			}
+			if ( null !== $best ) {
+				$hits[] = array( $best[0], $best[1], $idx, $n );
 			}
 		}
 		usort(
@@ -177,6 +192,19 @@ class GCalMK_Tags {
 	private static function clean_tag_name( $s ) {
 		$name = mb_substr( trim( preg_replace( '/\s+/u', ' ', sanitize_text_field( (string) $s ) ) ), 0, 40, 'UTF-8' );
 		return trim( str_replace( array( '[', ']' ), '', $name ) );
+	}
+
+	/** Weitere Stichwörter aus einer Eingabe (Komma, Semikolon oder Zeilenumbruch getrennt, oder Liste): klein geschrieben, eindeutig. */
+	private static function clean_words( $in, $own ) {
+		$list = is_array( $in ) ? $in : preg_split( '/[,;\n]+/u', (string) $in );
+		$out  = array();
+		foreach ( (array) $list as $w ) {
+			$w = self::norm( mb_substr( trim( str_replace( array( '[', ']' ), '', sanitize_text_field( (string) $w ) ) ), 0, 40, 'UTF-8' ) );
+			if ( '' !== $w && $w !== $own && ! in_array( $w, $out, true ) ) {
+				$out[] = $w;
+			}
+		}
+		return array_slice( $out, 0, 20 );
 	}
 
 	private static function clean_color( $hex, $n ) {
@@ -269,6 +297,7 @@ class GCalMK_Tags {
 					'name'  => $name,
 					'color' => self::clean_color( isset( $row['color'] ) ? $row['color'] : '', $n ),
 					'area'  => $aid,
+					'words' => self::clean_words( isset( $row['words'] ) ? $row['words'] : '', $n ),
 				);
 			}
 		} else {
@@ -297,6 +326,7 @@ class GCalMK_Tags {
 				'name'  => $c['name'],
 				'color' => $c['color'],
 				'area'  => isset( $areas[ $aid ] ) ? $areas[ $aid ] : '',
+				'words' => isset( $c['words'] ) && is_array( $c['words'] ) ? array_values( $c['words'] ) : array(),
 			);
 		}
 		return array(
@@ -330,6 +360,7 @@ class GCalMK_Tags {
 					'name'  => (string) $t['name'],
 					'color' => isset( $t['color'] ) ? (string) $t['color'] : '',
 					'area'  => isset( $t['area'] ) ? (string) $t['area'] : '', // Name; wird in sanitize() der Nummer zugeordnet
+					'words' => isset( $t['words'] ) && is_array( $t['words'] ) ? $t['words'] : '',
 				);
 			}
 		}
