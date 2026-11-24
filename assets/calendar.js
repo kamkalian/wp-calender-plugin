@@ -279,16 +279,38 @@
 		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) };
 	}
 
+	// Titel für den Ausdruck: gleicher Eintrag trotz Zahl am Anfang ("10. "), Emojis, Satzzeichen oder Groß-/Kleinschreibung.
+	// Titel mit "GESCHLOSSEN"/"ENTFÄLLT" werden über den Namen davor (bzw. danach) zusammengefasst, auch mit Zusätzen
+	// wie "Frohe Weihnachten": "Geschäftsstelle GESCHLOSSEN", "Geschäftsstelle - GESCHLOSSEN 🤡" → ein Eintrag.
+	function printTitle(title) {
+		var t = String(title).replace(/^\s*\d+\s*\.\s+/, '')
+			.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu, '')
+			.replace(/\s+/g, ' ').trim();
+		var alnum = function (s) { return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); };
+		var clean = function (s) { return s.replace(/^[\s\-–—:,;!(]+|[\s\-–—:,;!()]+$/g, ''); };
+		var up = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+		var m = t.match(/geschlossen|entf(?:ä|ae)llt/i);
+		if (m) {
+			var flag = /geschlossen/i.test(m[0]) ? 'geschlossen' : 'entfällt';
+			var before = t.slice(0, m.index), after = t.slice(m.index + m[0].length);
+			var base = alnum(before) ? before : after;
+			if (alnum(base)) {
+				return { key: alnum(base) + '|' + flag, display: up(clean(base)) + ' ' + flag.toUpperCase() };
+			}
+		}
+		return { key: alnum(t), display: up(t) };
+	}
+
 	// Eindeutige Termine (nach Titel) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
 	// Hat ein Termin mehrere Uhrzeiten, bekommt er je Uhrzeit einen Abschnitt ("slot") mit eigenen Tagen.
 	Calendar.prototype.printEntries = function () {
 		var from = iso(this.year, this.month, 1), groups = {}, order = [];
 		this.filtered().forEach(function (ev) {
 			if (isCancelled(ev) || ev.endDate < from) { return; }
-			var key = ev.title.toLowerCase().replace(/\s+/g, ' ').trim();
+			var tk = printTitle(ev.title), key = tk.key;
 			var g = groups[key];
 			if (!g) {
-				g = groups[key] = { title: ev.title, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
+				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
 				order.push(g);
 			}
 			var sk = ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime;
@@ -330,8 +352,8 @@
 					cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
 						(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
 				}
-				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + esc(time) + '</td><td class="days"><div>' + esc(dt.main) + '</div>' +
-					(dt.sub ? '<div class="loc">' + esc(dt.sub) + '</div>' : '') + '</td></tr>';
+				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + esc(time) + '</td><td class="days">' + esc(dt.main) +
+					(dt.sub ? ' <span class="loc">· ' + esc(dt.sub) + '</span>' : '') + '</td></tr>';
 			}).join('');
 			return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
 		}).join('');
