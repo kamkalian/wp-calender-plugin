@@ -97,6 +97,19 @@
 		return best;
 	}
 
+	// Großer Theme-Innenabstand oberhalb des Kalenders (z. B. 72 px im Seitenkopf-Bereich): auf 16 px verkleinern, damit die Leiste näher an den Titel rückt.
+	function trimTop(root) {
+		try {
+			for (var p = root.parentElement, n = 0; p && p !== document.body && n < 6; p = p.parentElement, n++) {
+				var pad = parseFloat(window.getComputedStyle(p).paddingTop) || 0;
+				if (pad > 24 && root.getBoundingClientRect().top - p.getBoundingClientRect().top - pad < 2) {
+					p.style.setProperty('padding-top', '16px', 'important');
+					break;
+				}
+			}
+		} catch (e) { /* ignorieren */ }
+	}
+
 	// "overflow: hidden" an übergeordneten Elementen verhindert position: sticky; "clip" schneidet gleich ab, ohne einen Scrollbereich zu bilden.
 	function unclip(root) {
 		try {
@@ -221,6 +234,7 @@
 		this.root.textContent = '';
 		this.root.classList.add('gcalmk-ready');
 		unclip(this.root);
+		trimTop(this.root);
 
 
 		// Kopfbereich (Tags, Monatsnavigation, Suche, Wochentage): scrollt zuerst bis zum oberen Seitenrand
