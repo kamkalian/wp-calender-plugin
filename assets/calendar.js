@@ -434,8 +434,7 @@
 					var dt = datesText(s.list);
 					var cell = '';
 					if (i === 0) {
-						cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
-							(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
+						cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div></td>'; // keine Beschreibung/kein Ort im Ausdruck
 					}
 					// geschlossene Tage: nur "GESCHLOSSEN", keine Uhrzeit
 					var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' : esc(time);
