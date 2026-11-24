@@ -279,23 +279,36 @@
 		return { main: main, sub: printDate(list[0]) + ' – ' + printDate(list[list.length - 1]) };
 	}
 
-	// Eindeutige Termine (Titel + Uhrzeit) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
+	// Eindeutige Termine (nach Titel) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
+	// Hat ein Termin mehrere Uhrzeiten, bekommt er je Uhrzeit einen Abschnitt ("slot") mit eigenen Tagen.
 	Calendar.prototype.printEntries = function () {
 		var from = iso(this.year, this.month, 1), groups = {}, order = [];
 		this.filtered().forEach(function (ev) {
 			if (isCancelled(ev) || ev.endDate < from) { return; }
-			var key = ev.title.toLowerCase().replace(/\s+/g, ' ').trim() + '|' + (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
+			var key = ev.title.toLowerCase().replace(/\s+/g, ' ').trim();
 			var g = groups[key];
 			if (!g) {
-				g = groups[key] = { title: ev.title, allDay: ev.allDay, st: ev.startTime, et: ev.endTime, location: ev.location, tag: ev.tags[0] || '', dates: {} };
+				g = groups[key] = { title: ev.title, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
 				order.push(g);
 			}
+			var sk = ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime;
+			var s = g.slots[sk];
+			if (!s) {
+				s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, dates: {} };
+				g.slotOrder.push(s);
+			}
 			var t = isoToTime(ev.startDate < from ? from : ev.startDate), end = isoToTime(ev.endDate);
-			for (; t <= end; t += DAY) { g.dates[timeToIso(t)] = true; }
+			for (; t <= end; t += DAY) { s.dates[timeToIso(t)] = true; }
 		});
-		order.forEach(function (g) { g.list = Object.keys(g.dates).sort(); });
+		order.forEach(function (g) {
+			g.slotOrder.forEach(function (s) { s.list = Object.keys(s.dates).sort(); });
+			g.slotOrder.sort(function (a, b) {
+				return (a.list[0] < b.list[0] ? -1 : (a.list[0] > b.list[0] ? 1 : 0)) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0));
+			});
+			g.first = g.slotOrder.reduce(function (m, s) { return s.list[0] < m ? s.list[0] : m; }, g.slotOrder[0].list[0]);
+		});
 		order.sort(function (a, b) {
-			return (a.list[0] < b.list[0] ? -1 : (a.list[0] > b.list[0] ? 1 : 0)) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0)) || a.title.localeCompare(b.title, 'de');
+			return (a.first < b.first ? -1 : (a.first > b.first ? 1 : 0)) || a.title.localeCompare(b.title, 'de');
 		});
 		return order;
 	};
@@ -305,15 +318,22 @@
 		var entries = this.printEntries();
 		var heading = 'ab ' + MONTHS[this.month] + ' ' + this.year;
 		var lastDay = '';
-		var rows = entries.map(function (g) {
-			if (g.list[g.list.length - 1] > lastDay) { lastDay = g.list[g.list.length - 1]; }
-			var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
+		var body = entries.map(function (g) {
 			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
-			var dt = datesText(g.list);
-			return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
-				(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
-				'<td class="time">' + esc(time) + '</td><td class="days"><div>' + esc(dt.main) + '</div>' +
-				(dt.sub ? '<div class="loc">' + esc(dt.sub) + '</div>' : '') + '</td></tr>';
+			var n = g.slotOrder.length;
+			var rows = g.slotOrder.map(function (s, i) {
+				if (s.list[s.list.length - 1] > lastDay) { lastDay = s.list[s.list.length - 1]; }
+				var time = s.allDay ? 'ganztägig' : s.st + (s.et && s.et !== s.st ? '–' + s.et : '') + ' Uhr';
+				var dt = datesText(s.list);
+				var cell = '';
+				if (i === 0) {
+					cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
+						(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
+				}
+				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + esc(time) + '</td><td class="days"><div>' + esc(dt.main) + '</div>' +
+					(dt.sub ? '<div class="loc">' + esc(dt.sub) + '</div>' : '') + '</td></tr>';
+			}).join('');
+			return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
 		}).join('');
 		var n = entries.length;
 		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
@@ -326,12 +346,13 @@
 			'table{width:100%;border-collapse:collapse}' +
 			'th{text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#555;border-bottom:1.5pt solid #000;padding:1.5mm 2mm}' +
 			'td{padding:1.8mm 2mm;border-bottom:.5pt solid #bbb;vertical-align:top}' +
-			'tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
+			'tr.more td.time,tr.more td.days{border-bottom:.5pt dotted #ccc}' +
+			'tbody{page-break-inside:avoid;break-inside:avoid}tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
 			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
 			'.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
-			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
+			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
 			'</body></html>';
 	};
 
