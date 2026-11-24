@@ -79,15 +79,86 @@
 		return isNaN(v) ? null : Math.max(0, v);
 	}
 
+	// "a, b" -> ['a', 'b']
+	function splitList(v) {
+		return String(v || '').split(',').map(function (x) { return x.trim(); }).filter(function (x) { return x; });
+	}
+
+	// Dropdown mit Mehrfachauswahl (Checkboxen). options: [{ value, label, color, recurring }]
+	function makeDrop(label) {
+		var d = { label: label, focusVal: null };
+		d.wrap = el('div', 'gcalmk-drop');
+		d.btn = el('button', 'gcalmk-dropbtn');
+		d.btn.type = 'button';
+		d.btn.setAttribute('aria-haspopup', 'true');
+		d.btn.setAttribute('aria-expanded', 'false');
+		d.panel = el('div', 'gcalmk-droppanel');
+		d.panel.hidden = true;
+		d.panel.setAttribute('role', 'group');
+		d.panel.setAttribute('aria-label', label + ' auswählen');
+		d.close = function () { d.panel.hidden = true; d.btn.setAttribute('aria-expanded', 'false'); };
+		d.btn.addEventListener('click', function () {
+			d.panel.hidden = !d.panel.hidden;
+			d.btn.setAttribute('aria-expanded', d.panel.hidden ? 'false' : 'true');
+		});
+		document.addEventListener('click', function (e) { if (!d.wrap.contains(e.target)) { d.close(); } });
+		d.wrap.addEventListener('keydown', function (e) { if (e.key === 'Escape') { d.close(); d.btn.focus(); } });
+		d.wrap.appendChild(d.btn);
+		d.wrap.appendChild(d.panel);
+		d.set = function (options, selected, onChange) {
+			var fv = d.focusVal;
+			d.focusVal = null;
+			d.wrap.hidden = options.length === 0 && selected.length === 0;
+			d.btn.textContent = '';
+			d.btn.appendChild(el('span', null, label));
+			if (selected.length) { d.btn.appendChild(el('span', 'gcalmk-dropcount', String(selected.length))); }
+			d.btn.appendChild(el('span', 'gcalmk-dropcaret', '▾'));
+			d.btn.classList.toggle('gcalmk-dropbtn-on', selected.length > 0);
+			d.panel.textContent = '';
+			if (selected.length) {
+				var clear = el('button', 'gcalmk-dropclear', 'Auswahl aufheben');
+				clear.type = 'button';
+				clear.addEventListener('click', function () { onChange([]); });
+				d.panel.appendChild(clear);
+			}
+			options.forEach(function (op) {
+				var row = el('label', 'gcalmk-dropopt');
+				var cb = el('input');
+				cb.type = 'checkbox';
+				cb.checked = selected.indexOf(op.value) !== -1;
+				cb.value = op.value;
+				cb.addEventListener('change', function () {
+					d.focusVal = op.value;
+					onChange(options.map(function (x) { return x.value; }).filter(function (v) {
+						return v === op.value ? cb.checked : selected.indexOf(v) !== -1;
+					}));
+				});
+				row.appendChild(cb);
+				if (op.color) {
+					var dot = el('span', 'gcalmk-dot');
+					dot.style.background = op.color;
+					dot.setAttribute('aria-hidden', 'true');
+					row.appendChild(dot);
+				}
+				row.appendChild(el('span', 'gcalmk-dropopt-label', op.label));
+				if (op.recurring) { row.appendChild(recIcon()); }
+				d.panel.appendChild(row);
+				if (fv !== null && fv === op.value) { cb.setAttribute('data-refocus', '1'); }
+			});
+			var rf = d.panel.querySelector('input[data-refocus]');
+			if (rf) { rf.focus(); rf.removeAttribute('data-refocus'); }
+		};
+		return d;
+	}
+
 	function Calendar(root) {
 		this.root = root;
 		this.endpoint = root.getAttribute('data-endpoint');
 		this.showSearch = root.getAttribute('data-search') !== '0';
 		this.showTags = root.getAttribute('data-tags') !== '0';
-		this.tag = root.getAttribute('data-tag') || '';
-		this.area = root.getAttribute('data-area') || ''; // gewählter Bereich (Filter)
+		this.tagSel = splitList(root.getAttribute('data-tag')); // gewählte Tags (Mehrfachauswahl)
+		this.areaSel = splitList(root.getAttribute('data-area')); // gewählte Bereiche (Mehrfachauswahl)
 		this.showAreas = root.getAttribute('data-areas') !== '0';
-		this.tagsOpen = false;
 		this.tagRecurring = {};
 		this.colors = {};
 		this.areas = []; // Bereiche des Ausdrucks (Überschriften in Reihenfolge)
@@ -109,27 +180,12 @@
 		this.root.textContent = '';
 		this.root.classList.add('gcalmk-ready');
 
-		// Tag-Bereich: Kopfzeile (Auf-/Zuklappen + gewählter Tag) und aufklappbare Liste.
-		this.tagWrap = el('div', 'gcalmk-tags');
-		this.tagHead = el('div', 'gcalmk-taghead');
-		this.tagPanel = el('div', 'gcalmk-tagpanel');
-		this.tagPanel.id = 'gcalmk-tagpanel-' + Math.random().toString(36).slice(2, 8);
-		this.tagPanel.setAttribute('role', 'group');
-		this.tagPanel.setAttribute('aria-label', 'Nach Tag filtern');
-		this.tagPanel.hidden = true;
-		this.tagWrap.appendChild(this.tagHead);
-		this.tagWrap.appendChild(this.tagPanel);
 
 		// Kopfbereich (Tags, Monatsnavigation, Suche, Wochentage): scrollt zuerst bis zum oberen Seitenrand
 		// und bleibt dann stehen (position: sticky), während der Rest der Tabelle weiterscrollt.
 		this.sticky = el('div', 'gcalmk-sticky');
 		var stickyTop = root_top(this.root);
 		if (stickyTop !== null) { this.root.style.setProperty('--gk-top', stickyTop + 'px'); }
-		this.areaBar = el('div', 'gcalmk-areas');
-		this.areaBar.setAttribute('role', 'group');
-		this.areaBar.setAttribute('aria-label', 'Nach Bereich filtern');
-		if (this.showAreas) { this.sticky.appendChild(this.areaBar); }
-		if (this.showTags) { this.sticky.appendChild(this.tagWrap); }
 
 		var top = el('div', 'gcalmk-top');
 		this.nav = el('div', 'gcalmk-nav');
@@ -178,6 +234,12 @@
 			box.appendChild(this.input);
 			tools.appendChild(box);
 		}
+
+		// Auswahl nach Bereich und Tag (Dropdowns mit Mehrfachauswahl) rechts neben der Suche
+		this.areaDrop = makeDrop('Bereiche');
+		this.tagDrop = makeDrop('Tags');
+		if (this.showAreas) { tools.appendChild(this.areaDrop.wrap); }
+		if (this.showTags) { tools.appendChild(this.tagDrop.wrap); }
 
 		// Umschalter Kalender-/Listenansicht (Liste: nur die gefilterten Termine ab heute)
 		var vw = el('div', 'gcalmk-viewsw');
@@ -482,7 +544,7 @@
 		var count = Object.keys(seenTitles).length;
 		var sub = count + (count === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
-			(this.area ? ' · Bereich: ' + esc(this.area) : '') + (this.tag ? ' · Tag: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
+			(this.areaSel.length ? ' · Bereich: ' + esc(this.areaSel.join(', ')) : '') + (this.tagSel.length ? ' · Tag: ' + esc(this.tagSel.join(', ')) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
@@ -533,22 +595,14 @@
 				self.events = data.events || [];
 				self.colors = data.colors || {};
 				self.areas = data.areas || [];
-				if (self.area) {
-					// Vorgewählten Bereich (Shortcode) auf die tatsächliche Schreibweise abbilden.
-					var al = self.area.toLowerCase();
-					self.area = '';
-					self.areas.forEach(function (a) { if (a.toLowerCase() === al) { self.area = a; } });
-				}
+				// Vorgewählte Bereiche/Tags (Shortcode) auf die tatsächliche Schreibweise abbilden.
+				var known = {};
+				self.events.forEach(function (ev) { ev.tags.forEach(function (t) { known[t.toLowerCase()] = t; }); });
+				var knownAreas = {};
+				self.areas.forEach(function (a) { knownAreas[a.toLowerCase()] = a; });
+				self.areaSel = self.areaSel.map(function (a) { return knownAreas[a.toLowerCase()]; }).filter(function (a) { return a; });
+				self.tagSel = self.tagSel.map(function (t) { return known[t.toLowerCase()]; }).filter(function (t) { return t; });
 				self.computeTags();
-				if (self.tag) {
-					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.
-					var low = self.tag.toLowerCase();
-					var found = '';
-					self.events.forEach(function (ev) {
-						ev.tags.forEach(function (t) { if (t.toLowerCase() === low) { found = t; } });
-					});
-					self.tag = found;
-				}
 				self.jumpIfSingle();
 				self.renderAreas();
 				self.renderTags();
@@ -567,27 +621,20 @@
 		this.render();
 	};
 
-	// Bereiche als Filter über dem Kalender: nur Bereiche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen.
+	// Bereiche als Dropdown: nur Bereiche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen.
 	Calendar.prototype.renderAreas = function () {
 		var self = this, today = this.todayIso, has = {};
-		this.areaBar.textContent = '';
 		this.events.forEach(function (ev) {
 			if (ev.endDate < today) { return; }
 			(ev.areas || []).forEach(function (a) { has[a] = true; });
 		});
 		var list = this.areas.filter(function (a) { return has[a]; });
-		this.areaBar.hidden = list.length === 0;
-		list.forEach(function (a) {
-			var b = el('button', 'gcalmk-areachip', a);
-			b.type = 'button';
-			b.setAttribute('aria-pressed', self.area === a ? 'true' : 'false');
-			b.addEventListener('click', function () { self.setArea(self.area === a ? '' : a); });
-			self.areaBar.appendChild(b);
-		});
+		this.areaSel.forEach(function (a) { if (list.indexOf(a) === -1) { list.push(a); } });
+		this.areaDrop.set(list.map(function (a) { return { value: a, label: a }; }), this.areaSel, function (sel) { self.setAreas(sel); });
 	};
 
-	Calendar.prototype.setArea = function (value) {
-		this.area = value;
+	Calendar.prototype.setAreas = function (sel) {
+		this.areaSel = sel;
 		this.computeTags();
 		this.jumpIfSingle();
 		this.renderAreas();
@@ -595,12 +642,12 @@
 		this.render();
 	};
 
-	// Nur Tags mit mindestens einem Termin ab heute, alphabetisch sortiert.
+	// Nur Tags mit mindestens einem Termin ab heute (in den gewählten Bereichen), alphabetisch sortiert.
 	Calendar.prototype.computeTags = function () {
-		var counts = {}, today = this.todayIso, rec = {}, area = this.area;
+		var counts = {}, today = this.todayIso, rec = {}, areas = this.areaSel;
 		this.events.forEach(function (ev) {
 			if (ev.endDate < today) { return; }
-			if (area && (ev.areas || []).indexOf(area) === -1) { return; } // nur Tags des gewählten Bereichs
+			if (areas.length && !(ev.areas || []).some(function (a) { return areas.indexOf(a) !== -1; })) { return; }
 			ev.tags.forEach(function (t) {
 				counts[t] = (counts[t] || 0) + 1;
 				if (ev.recurring) { rec[t] = true; } // Tag mit wiederkehrenden Terminen
@@ -620,71 +667,26 @@
 		return this.colorOf(ev.tags && ev.tags[0]);
 	};
 
-	Calendar.prototype.setTag = function (value) {
-		this.tag = value;
-		this.tagsOpen = false; // nach der Auswahl wieder einklappen
+	Calendar.prototype.setTags = function (sel) {
+		this.tagSel = sel;
 		this.jumpIfSingle();
 		this.renderTags();
 		this.render();
-		var t = this.tagHead.querySelector('.gcalmk-tagtoggle');
-		if (t) { t.focus(); }
 	};
 
 	Calendar.prototype.renderTags = function () {
 		var self = this;
-		this.tagHead.textContent = '';
-		this.tagPanel.textContent = '';
-		if (!this.tags.length && !this.tag) {
-			this.tagWrap.hidden = true;
-			return;
-		}
-		this.tagWrap.hidden = false;
-
-		// Schaltfläche in neutralem Weiß; die Tag-Farbe zeigt nur ein Punkt.
-		var chip = function (label, color, selected, recurring) {
-			var b = el('button', 'gcalmk-chip');
-			b.type = 'button';
-			var dot = el('span', 'gcalmk-dot');
-			dot.style.background = color;
-			dot.setAttribute('aria-hidden', 'true');
-			b.appendChild(dot);
-			b.appendChild(el('span', 'gcalmk-chip-label', label));
-			if (recurring) { b.appendChild(recIcon()); }
-			if (selected !== undefined) { b.setAttribute('aria-pressed', selected ? 'true' : 'false'); }
-			return b;
-		};
-
-		var toggle = el('button', 'gcalmk-tagtoggle', 'Tags (' + this.tags.length + ') ' + (this.tagsOpen ? '▴' : '▾'));
-		toggle.type = 'button';
-		toggle.setAttribute('aria-expanded', this.tagsOpen ? 'true' : 'false');
-		toggle.setAttribute('aria-controls', this.tagPanel.id);
-		toggle.addEventListener('click', function () {
-			self.tagsOpen = !self.tagsOpen;
-			self.renderTags();
-		});
-		this.tagHead.appendChild(toggle);
-
-		// Gewählter Tag bleibt dauerhaft sichtbar; Klick darauf hebt den Filter auf.
-		if (this.tag) {
-			var sel = chip(this.tag, this.colorOf(this.tag), true, this.tagRecurring[this.tag]);
-			sel.appendChild(el('span', 'gcalmk-x', '×'));
-			sel.classList.add('gcalmk-chip-selected');
-			sel.setAttribute('aria-label', 'Tag ' + this.tag + ' aktiv, Filter aufheben');
-			sel.addEventListener('click', function () { self.setTag(''); });
-			this.tagHead.appendChild(sel);
-		}
-
-		this.tagPanel.hidden = !this.tagsOpen;
-		this.tags.forEach(function (t) {
-			var b = chip(t, self.colorOf(t), self.tag === t, self.tagRecurring[t]);
-			b.addEventListener('click', function () { self.setTag(t); });
-			self.tagPanel.appendChild(b);
-		});
+		var names = this.tags.slice();
+		this.tagSel.forEach(function (t) { if (names.indexOf(t) === -1) { names.push(t); } });
+		names.sort(function (a, b) { return a.localeCompare(b, 'de', { sensitivity: 'base' }); });
+		this.tagDrop.set(names.map(function (t) {
+			return { value: t, label: t, color: self.colorOf(t), recurring: self.tagRecurring[t] };
+		}), this.tagSel, function (sel) { self.setTags(sel); });
 	};
 
 	// Hat der gewählte Tag nur einen einzigen Termin, springt der Kalender in dessen Monat.
 	Calendar.prototype.jumpIfSingle = function () {
-		if (!this.tag) { return; }
+		if (!this.tagSel.length) { return; }
 		var list = this.filtered();
 		if (list.length === 1) {
 			var p = parseIso(list[0].startDate);
@@ -696,9 +698,10 @@
 	};
 
 	Calendar.prototype.filtered = function () {
-		var tag = this.tag, area = this.area;
+		var tags = this.tagSel, areas = this.areaSel;
 		return this.events.filter(function (ev) {
-			return (!tag || ev.tags.indexOf(tag) !== -1) && (!area || (ev.areas || []).indexOf(area) !== -1);
+			return (!tags.length || ev.tags.some(function (t) { return tags.indexOf(t) !== -1; })) &&
+				(!areas.length || (ev.areas || []).some(function (a) { return areas.indexOf(a) !== -1; }));
 		});
 	};
 
@@ -850,7 +853,7 @@
 
 		var any = Object.keys(byDay).length > 0;
 		if (!any) {
-			this.body.appendChild(el('p', 'gcalmk-status', 'Keine Termine in diesem Monat' + (this.tag ? ' für „' + this.tag + '“' : '') + '.'));
+			this.body.appendChild(el('p', 'gcalmk-status', 'Keine Termine in diesem Monat' + (this.tagSel.length ? ' für „' + this.tagSel.join(', ') + '“' : '') + '.'));
 		}
 	};
 

@@ -18,7 +18,7 @@ Der Key kann alternativ in der `wp-config.php` stehen: `define( 'GCALMK_API_KEY'
 | `suche="nein"` | Suche ausblenden |
 | `tags="nein"` | Tag-Leiste ausblenden |
 | `bereich="Name"` | Bereich beim Laden vorgewählt |
-| `bereiche="nein"` | Bereichs-Filter über dem Kalender ausblenden |
+| `bereiche="nein"` | Bereichs-Dropdown ausblenden |
 | `breite="inhalt"` | Standard ist die volle Fensterbreite; so nur Breite des Theme-Inhaltsbereichs |
 | `oben="70"` | Abstand des fixierten Kopfbereichs zum oberen Fensterrand in Pixel (bei festem Theme-Header) |
 
@@ -29,9 +29,8 @@ Tags legst du unter *Einstellungen → Google-Kalender → Tags* **manuell** an:
 
 **Bereich im Ausdruck:** Der Tag, der im Titel zuerst vorkommt und einen Bereich hat, bestimmt den Bereich; der Termin steht nur in diesem einen. **Ohne Bereich wird der Termin nicht gedruckt** – der Tag filtert dann nur im Kalender.
 
-**Bereichs-Filter:** Ganz oben über dem Kalender stehen die Bereiche (nur solche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen) als Filter. Ein Klick zeigt nur die Termine dieses Bereichs, ein zweiter Klick hebt den Filter auf. Er lässt sich mit dem Tag-Filter kombinieren, die Tag-Liste zeigt dann nur Tags aus dem gewählten Bereich, und der Ausdruck berücksichtigt ihn. Mit `bereich="Name"` im Shortcode ist ein Bereich vorgewählt, mit `bereiche="nein"` blendet man die Leiste aus. Auf dem Handy ist sie eine wischbare Zeile.
+**Filter:** Rechts neben dem Suchfeld stehen zwei Dropdowns mit Mehrfachauswahl: „Bereiche“ (nur Bereiche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen) und „Tags“ (Tags mit mindestens einem Termin ab heute, alphabetisch, Farbe als Punkt). Mehrere Haken in einem Dropdown gelten als „oder“, Bereiche und Tags zusammen als „und“. Die Tag-Liste zeigt nur Tags der gewählten Bereiche; „Auswahl aufheben“ setzt ein Dropdown zurück. Beim Shortcode können `tag` und `bereich` mehrere Namen mit Komma enthalten.
 
-Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, alphabetisch sortiert. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
 
 ## Wiederkehrende Termine
 Google liefert bei aufgelösten Serien die Serien-ID (`recurringEventId`) mit. Ein Tag, dessen Termine wiederkehrend sind, trägt in der Tag-Leiste das Symbol ↻ (an den Terminen im Raster steht es nicht).

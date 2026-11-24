@@ -90,12 +90,33 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 }
 
 /* Rechts oben: Suche, Drucken, Zahnrad */
-.gcalmk-tools { display: flex; align-items: center; gap: 8px; }
+.gcalmk-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 /* Umschalter Kalender / Liste */
 .gcalmk-viewsw { display: inline-flex; border: 1px solid var(--gk-border); border-radius: 4px; overflow: hidden; }
 .gcalmk-viewbtn { padding: 6px 12px; border: 0; background: #fff; color: var(--gk-text); font-weight: 600; cursor: pointer; }
 .gcalmk-viewbtn + .gcalmk-viewbtn { border-left: 1px solid var(--gk-border); }
 .gcalmk-viewbtn[aria-pressed="true"] { background: var(--gk-accent); color: #fff; }
+
+/* Dropdowns mit Mehrfachauswahl (Bereiche, Tags) */
+.gcalmk-drop { position: relative; }
+.gcalmk-drop[hidden] { display: none; }
+.gcalmk-dropbtn {
+	display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--gk-border); border-radius: 4px;
+	background: #fff; color: var(--gk-text); font-weight: 600; cursor: pointer;
+}
+.gcalmk-dropbtn:hover { border-color: var(--gk-accent); }
+.gcalmk-dropbtn-on { border-color: var(--gk-accent); }
+.gcalmk-dropcount { min-width: 1.4em; padding: 0 6px; border-radius: 10px; background: var(--gk-accent); color: #fff; font-size: .8em; text-align: center; }
+.gcalmk-dropcaret { font-size: .8em; }
+.gcalmk-droppanel {
+	position: absolute; left: 0; top: calc(100% + 6px); z-index: 50; min-width: 240px; max-width: 80vw; max-height: 60vh; overflow-y: auto; padding: 8px;
+	background: #fff; border: 1px solid var(--gk-border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+.gcalmk-droppanel[hidden] { display: none; }
+.gcalmk-dropopt { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.gcalmk-dropopt:hover { background: rgba(168, 51, 38, .08); }
+.gcalmk-dropopt-label { flex: 1; }
+.gcalmk-dropclear { display: block; width: 100%; margin: 0 0 6px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--gk-border); background: none; color: var(--gk-accent); text-align: left; font-weight: 600; cursor: pointer; }
 
 .gcalmk-iconbtn {
 	display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;

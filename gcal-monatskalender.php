@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GCal Monatskalender
  * Description: Liest die Termine eines öffentlichen Google-Kalenders alle 10 Minuten per API-Key ein und zeigt sie per Shortcode [gcal_kalender] als Monatsansicht mit Tag-Filter und Suche.
- * Version:     1.0.41
+ * Version:     1.0.42
  * Author:      FaWoWa
  * License:     GPL-2.0-or-later
  * Requires at least: 5.8
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'GCALMK_VERSION', '1.0.41' );
+define( 'GCALMK_VERSION', '1.0.42' );
 define( 'GCALMK_FILE', __FILE__ );
 define( 'GCALMK_DIR', plugin_dir_path( __FILE__ ) );
 define( 'GCALMK_URL', plugin_dir_url( __FILE__ ) );
