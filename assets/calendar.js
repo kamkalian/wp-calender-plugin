@@ -315,7 +315,8 @@
 				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
 				order.push(g);
 			}
-			var sk = (tk.closed ? 'zu|' : '') + (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
+			// geschlossene Tage bilden einen Abschnitt ohne Uhrzeit
+			var sk = tk.closed ? 'geschlossen' : (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
 			var s = g.slots[sk];
 			if (!s) {
 				s = g.slots[sk] = { allDay: ev.allDay, st: ev.startTime, et: ev.endTime, closed: tk.closed, dates: {} };
@@ -355,8 +356,8 @@
 					cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
 						(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
 				}
-				// geschlossene Tage: "GESCHLOSSEN" (bei Uhrzeit darunter)
-				var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' + (s.allDay ? '' : '<div class="loc">' + esc(time) + '</div>') : esc(time);
+				// geschlossene Tage: nur "GESCHLOSSEN", keine Uhrzeit
+				var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' : esc(time);
 				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + esc(dt.main) +
 					(dt.sub ? ' <span class="loc">· ' + esc(dt.sub) + '</span>' : '') + '</td></tr>';
 			}).join('');
