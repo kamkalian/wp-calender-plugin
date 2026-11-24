@@ -31,7 +31,7 @@ Tags legst du unter *Einstellungen → Google-Kalender → Tags* **manuell** an:
 
 **Bereichs-Filter:** Ganz oben über dem Kalender stehen die Bereiche (nur solche mit mindestens einem Termin ab heute, in der Reihenfolge der Einstellungen) als Filter. Ein Klick zeigt nur die Termine dieses Bereichs, ein zweiter Klick hebt den Filter auf. Er lässt sich mit dem Tag-Filter kombinieren, die Tag-Liste zeigt dann nur Tags aus dem gewählten Bereich, und der Ausdruck berücksichtigt ihn. Mit `bereich="Name"` im Shortcode ist ein Bereich vorgewählt, mit `bereiche="nein"` blendet man die Leiste aus. Auf dem Handy ist sie eine wischbare Zeile.
 
-Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, sortiert nach Häufigkeit. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
+Im Kalender gibt es einen aufklappbaren Bereich „Tags“ mit den Tags, die mindestens einen Termin ab heute haben, alphabetisch sortiert. Die Tag-Farbe erscheint als Punkt am Tag und als Linie am Termin. Ein gewählter Tag bleibt neben dem Auf-/Zuklapp-Knopf sichtbar (Klick darauf hebt den Filter auf), der Bereich klappt nach der Auswahl wieder ein. Hat ein Tag nur einen Termin, springt der Kalender zu dessen Monat.
 
 ## Wiederkehrende Termine
 Google liefert bei aufgelösten Serien die Serien-ID (`recurringEventId`) mit. Ein Tag, dessen Termine wiederkehrend sind, trägt in der Tag-Leiste das Symbol ↻ (an den Terminen im Raster steht es nicht).

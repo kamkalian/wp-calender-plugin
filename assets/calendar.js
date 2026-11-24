@@ -595,7 +595,7 @@
 		this.render();
 	};
 
-	// Nur Tags mit mindestens einem Termin ab heute, nach Häufigkeit (künftige Termine) sortiert.
+	// Nur Tags mit mindestens einem Termin ab heute, alphabetisch sortiert.
 	Calendar.prototype.computeTags = function () {
 		var counts = {}, today = this.todayIso, rec = {}, area = this.area;
 		this.events.forEach(function (ev) {
@@ -608,7 +608,7 @@
 		});
 		this.tagRecurring = rec;
 		this.tags = Object.keys(counts).sort(function (a, b) {
-			return (counts[b] - counts[a]) || a.localeCompare(b, 'de');
+			return a.localeCompare(b, 'de', { sensitivity: 'base' }); // alphabetisch
 		});
 	};
 
