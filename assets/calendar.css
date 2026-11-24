@@ -148,6 +148,12 @@ body.admin-bar .gcalmk { --gk-top: 32px; }
 .gcalmk-lane.is-end { bottom: 4px; border-radius: 0 0 3px 3px; }
 .gcalmk-lane.is-first.is-end { border-radius: 3px; }
 .gcalmk-item:last-child .gcalmk-lane { bottom: 0; }
+/* Punkt auf der Linie: sitzt auf Höhe des zugehörigen Termins (Karte ohne den 4px Abstand darunter) */
+.gcalmk-ldot {
+	position: absolute; top: calc(50% - 2px); width: 8px; height: 8px; margin: -4px 0 0 -2px;
+	border-radius: 50%; box-shadow: 0 0 0 2px #fff;
+}
+.gcalmk-item:last-child .gcalmk-ldot { top: 50%; }
 
 /* Listen (Suche, Tagesdialog) */
 .gcalmk-results { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--gk-border, #d7cfab); }

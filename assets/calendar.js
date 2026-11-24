@@ -4,7 +4,7 @@
 	var MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 	var WDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 	var WDAYS_LONG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-	var LANE_W = 8;     // Breite einer Zeitlinie in px
+	var LANE_W = 10;    // Breite einer Zeitlinie samt Abstand in px
 
 	function el(tag, cls, text) {
 		var e = document.createElement(tag);
@@ -409,6 +409,14 @@
 						if (s.end) { seg.classList.add('is-end'); }
 						item.appendChild(seg);
 					});
+					// Punkte erst nach allen Linien, damit sie darüber liegen: zeigen, welche Linie zu diesem Termin gehört.
+					lay.segs[r].forEach(function (s) {
+						if (!s.dot) { return; }
+						var dot = el('span', 'gcalmk-ldot');
+						dot.style.left = (s.lane * LANE_W) + 'px';
+						dot.style.background = self.eventColor(s.ev);
+						item.appendChild(dot);
+					});
 					item.appendChild(self.pill(ev, key));
 					stack.appendChild(item);
 				});
@@ -425,7 +433,7 @@
 	};
 
 	// Tageslayout: ganztägige Termine, zeitgebundene Termine nach Beginn sortiert und je Termin eine
-	// "Zeitlinie": sie läuft vom eigenen Eintrag über alle folgenden Einträge, die vor seinem Ende beginnen.
+	// "Zeitlinie": sie läuft vom ersten Eintrag mit gleicher Startzeit über alle Einträge, die vor ihrem Ende beginnen.
 	Calendar.prototype.dayLayout = function (evs, key) {
 		var allDay = [], timed = [];
 		evs.forEach(function (ev) { (ev.allDay ? allDay : timed).push(ev); });
@@ -438,22 +446,28 @@
 			var x = span(a).s, y = span(b).s;
 			return x < y ? -1 : (x > y ? 1 : 0);
 		});
-		var n = timed.length, last = [], lane = [], laneEnd = [], i, j, l;
+		// Termine mit gleicher Startzeit stehen untereinander, ihre Linien beginnen aber alle beim obersten dieser Termine.
+		var n = timed.length, first = [], last = [], lane = [], laneEnd = [], i, j, l;
 		for (i = 0; i < n; i++) {
+			var s0 = span(timed[i]).s;
+			first[i] = (i > 0 && span(timed[i - 1]).s === s0) ? first[i - 1] : i;
 			var end = span(timed[i]).e;
 			j = i;
 			while (j + 1 < n && span(timed[j + 1]).s < end) { j++; }
 			last[i] = j;
 			l = 0;
-			while (l < laneEnd.length && laneEnd[l] >= i) { l++; }
+			while (l < laneEnd.length && laneEnd[l] >= first[i]) { l++; }
 			lane[i] = l;
 			laneEnd[l] = j;
 		}
 		var segs = [];
 		for (var r = 0; r < n; r++) {
 			segs[r] = [];
-			for (i = 0; i <= r; i++) {
-				if (last[i] >= r) { segs[r].push({ lane: lane[i], first: i === r, end: last[i] === r, ev: timed[i] }); }
+			for (i = 0; i < n; i++) {
+				if (first[i] <= r && last[i] >= r) {
+					// dot: Markierung auf der Linie an der Stelle des zugehörigen Termins
+					segs[r].push({ lane: lane[i], first: first[i] === r, end: last[i] === r, dot: i === r, ev: timed[i] });
+				}
 			}
 		}
 		return { allDay: allDay, timed: timed, segs: segs, laneCount: Math.max(1, laneEnd.length) };
