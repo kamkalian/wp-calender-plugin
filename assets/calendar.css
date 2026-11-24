@@ -91,6 +91,12 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 
 /* Rechts oben: Suche, Drucken, Zahnrad */
 .gcalmk-tools { display: flex; align-items: center; gap: 8px; }
+/* Umschalter Kalender / Liste */
+.gcalmk-viewsw { display: inline-flex; border: 1px solid var(--gk-border); border-radius: 4px; overflow: hidden; }
+.gcalmk-viewbtn { padding: 6px 12px; border: 0; background: #fff; color: var(--gk-text); font-weight: 600; cursor: pointer; }
+.gcalmk-viewbtn + .gcalmk-viewbtn { border-left: 1px solid var(--gk-border); }
+.gcalmk-viewbtn[aria-pressed="true"] { background: var(--gk-accent); color: #fff; }
+
 .gcalmk-iconbtn {
 	display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
 	border: 1px solid var(--gk-border); border-radius: 4px; background: #fff; color: var(--gk-text);

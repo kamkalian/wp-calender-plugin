@@ -49,19 +49,20 @@
 	// ---- Ansichts-Einstellungen (Zahnrad), als Cookie gespeichert ---------------
 	var PREF_COOKIE = 'gcalmk_prefs';
 	function readPrefs() {
-		var p = { bars: true };
+		var p = { bars: true, view: 'month' };
 		var m = document.cookie.match(new RegExp('(?:^|; )' + PREF_COOKIE + '=([^;]*)'));
 		if (m) {
 			try {
 				var o = JSON.parse(decodeURIComponent(m[1]));
 				if (o && typeof o === 'object' && (o.bars === 0 || o.bars === false)) { p.bars = false; }
+					if (o && o.view === 'list') { p.view = 'list'; }
 			} catch (e) { /* ungültiges Cookie ignorieren */ }
 		}
 		return p;
 	}
 	function savePrefs(p) {
 		try {
-			document.cookie = PREF_COOKIE + '=' + encodeURIComponent(JSON.stringify({ bars: p.bars ? 1 : 0 })) +
+			document.cookie = PREF_COOKIE + '=' + encodeURIComponent(JSON.stringify({ bars: p.bars ? 1 : 0, view: p.view === 'list' ? 'list' : 'month' })) +
 				'; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
 		} catch (e) { /* Cookies gesperrt */ }
 	}
@@ -177,6 +178,24 @@
 			box.appendChild(this.input);
 			tools.appendChild(box);
 		}
+
+		// Umschalter Kalender-/Listenansicht (Liste: nur die gefilterten Termine ab heute)
+		var vw = el('div', 'gcalmk-viewsw');
+		vw.setAttribute('role', 'group');
+		vw.setAttribute('aria-label', 'Ansicht wählen');
+		this.viewBtns = {};
+		[['month', 'Kalender'], ['list', 'Liste']].forEach(function (v) {
+			var b = el('button', 'gcalmk-viewbtn', v[1]);
+			b.type = 'button';
+			b.addEventListener('click', function () {
+				self.prefs.view = v[0];
+				savePrefs(self.prefs);
+				self.render();
+			});
+			self.viewBtns[v[0]] = b;
+			vw.appendChild(b);
+		});
+		tools.appendChild(vw);
 
 		var printBtn = el('button', 'gcalmk-iconbtn');
 		printBtn.type = 'button';
@@ -686,7 +705,9 @@
 	Calendar.prototype.render = function () {
 		this.body.textContent = '';
 		var list = this.filtered();
-		if (this.query.length >= 2) {
+		var asList = this.prefs.view === 'list';
+		for (var k in this.viewBtns) { this.viewBtns[k].setAttribute('aria-pressed', (k === 'list') === asList ? 'true' : 'false'); }
+		if (asList || this.query.length >= 2) {
 			this.nav.classList.add('gcalmk-hidden');
 			this.weekdays.hidden = true;
 			this.renderSearch(list);
@@ -700,11 +721,19 @@
 	Calendar.prototype.renderSearch = function (list) {
 		var self = this;
 		var q = this.query.toLowerCase();
+		var asList = this.prefs.view === 'list', today = this.todayIso;
 		var hits = list.filter(function (ev) {
+			if (asList && ev.endDate < today) { return false; } // Listenansicht: nur Termine ab heute
+			if (q.length < 2) { return true; }
 			var hay = (ev.title + ' ' + ev.location + ' ' + ev.description.replace(/<[^>]*>/g, ' ') + ' ' + ev.tags.join(' ')).toLowerCase();
 			return hay.indexOf(q) !== -1;
 		});
-		var head = el('p', 'gcalmk-status', hits.length + (hits.length === 1 ? ' Treffer' : ' Treffer') + ' für „' + this.query + '“');
+		if (asList) {
+			hits = hits.slice().sort(function (a, b) { return a.startDate < b.startDate ? -1 : (a.startDate > b.startDate ? 1 : 0); });
+		}
+		var head = el('p', 'gcalmk-status', q.length >= 2
+			? hits.length + ' Treffer für „' + this.query + '“'
+			: hits.length + (hits.length === 1 ? ' Termin' : ' Termine') + ' ab heute');
 		this.body.appendChild(head);
 		var ul = el('ul', 'gcalmk-results');
 		hits.forEach(function (ev) {
