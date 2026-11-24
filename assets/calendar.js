@@ -376,6 +376,7 @@
 			'tr.more td.time,tr.more td.days{border-bottom:.5pt dotted #ccc}' +
 			'tbody{page-break-inside:avoid;break-inside:avoid}tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
 			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
+			'.days .loc,.time .loc{font-size:inherit;color:inherit}' + // Datum, Uhrzeit und Zeitbereiche gleich groß
 			'.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
 			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
