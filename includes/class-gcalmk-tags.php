@@ -53,6 +53,7 @@ class GCalMK_Tags {
 		}
 		$d['titles'] = isset( $d['titles'] ) && is_array( $d['titles'] ) ? $d['titles'] : array();
 		$d['colors'] = isset( $d['colors'] ) && is_array( $d['colors'] ) ? $d['colors'] : array();
+		$d['noprint'] = isset( $d['noprint'] ) && is_array( $d['noprint'] ) ? $d['noprint'] : array(); // Titel-Schlüssel => 1: nicht im Ausdruck.
 		return $d;
 	}
 
@@ -138,6 +139,9 @@ class GCalMK_Tags {
 		$colors = array();
 		foreach ( $events as $i => $ev ) {
 			$key = self::title_key( $ev['title'] );
+			if ( ! empty( $data['noprint'][ $key ] ) ) {
+				$events[ $i ]['noPrint'] = true; // laut Einstellungen nicht im Ausdruck
+			}
 			$tag = self::effective_tag( $ev['title'], $key, $data );
 			$tn  = self::norm( $tag );
 			if ( '' === $tn ) {
@@ -181,10 +185,11 @@ class GCalMK_Tags {
 		if ( ! is_array( $in ) ) {
 			return $data;
 		}
-		if ( isset( $in['titles'] ) || isset( $in['colors'] ) ) {
+		if ( isset( $in['titles'] ) || isset( $in['colors'] ) || isset( $in['noprint'] ) ) {
 			return array(
-				'titles' => isset( $in['titles'] ) && is_array( $in['titles'] ) ? $in['titles'] : array(),
-				'colors' => isset( $in['colors'] ) && is_array( $in['colors'] ) ? $in['colors'] : array(),
+				'titles'  => isset( $in['titles'] ) && is_array( $in['titles'] ) ? $in['titles'] : array(),
+				'colors'  => isset( $in['colors'] ) && is_array( $in['colors'] ) ? $in['colors'] : array(),
+				'noprint' => isset( $in['noprint'] ) && is_array( $in['noprint'] ) ? $in['noprint'] : array(),
 			);
 		}
 
@@ -206,6 +211,11 @@ class GCalMK_Tags {
 				unset( $data['titles'][ $k ] ); // entspricht dem Standard
 			} else {
 				$data['titles'][ $k ] = $tag; // '' = bewusst kein Tag
+			}
+			if ( ! empty( $row['p'] ) ) {
+				$data['noprint'][ $k ] = 1; // nicht drucken
+			} else {
+				unset( $data['noprint'][ $k ] );
 			}
 			$hex = isset( $row['c'] ) ? strtolower( (string) $row['c'] ) : '';
 			if ( '' !== $tn && isset( $allowed[ $hex ] ) ) {

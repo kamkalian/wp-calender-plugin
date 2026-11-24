@@ -229,10 +229,13 @@ class GCalMK_Settings {
 						<select id="gcalmk-bulkcolor" aria-label="Farbe für alle angezeigten Termine"><?php echo $color_options( '' ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
 						<button type="button" class="button" id="gcalmk-bulkapply">Setzen</button>
 						<button type="button" class="button" id="gcalmk-bulkdelete">Tags löschen</button>
+						<span style="margin-left:12px">Ausdruck:</span>
+						<button type="button" class="button" id="gcalmk-bulknoprint">nicht drucken</button>
+						<button type="button" class="button" id="gcalmk-bulkprint">wieder drucken</button>
 					</p>
 					<div style="max-height:560px;overflow:auto;border:1px solid #c3c4c7;background:#fff;max-width:1000px">
 						<table class="widefat striped" id="gcalmk-events" style="border:0">
-							<thead><tr><th>Termin</th><th style="width:70px">Anzahl</th><th style="width:480px">Tag</th></tr></thead>
+							<thead><tr><th>Termin</th><th style="width:70px">Anzahl</th><th style="width:480px">Tag</th><th style="width:110px">Nicht drucken</th></tr></thead>
 							<tbody>
 							<?php foreach ( $uniq as $k => $u ) : ?>
 								<?php
@@ -247,6 +250,9 @@ class GCalMK_Settings {
 										<input type="text" class="gcalmk-tag" style="width:230px" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][t]" value="<?php echo esc_attr( $tg ); ?>" aria-label="Tag für <?php echo esc_attr( $u['title'] ); ?>">
 										<button type="button" class="button gcalmk-del" aria-label="Tag löschen">Löschen</button>
 										<select class="gcalmk-col" style="color:<?php echo esc_attr( $hex ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][c]" aria-label="Farbe"><?php echo $color_options( $hex ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
+									</td>
+								<td style="text-align:center">
+										<input type="checkbox" class="gcalmk-np" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][p]" value="1"<?php checked( ! empty( $tdata['noprint'][ $k ] ) ); ?> aria-label="<?php echo esc_attr( $u['title'] ); ?> nicht drucken">
 									</td>
 								</tr>
 							<?php endforeach; ?>
@@ -320,6 +326,11 @@ class GCalMK_Settings {
 						rows.forEach(function (r) { if (visible(r)) { inp(r).value = ''; } });
 						apply();
 					});
+					function setNoPrint(v) {
+						rows.forEach(function (r) { if (visible(r)) { r.querySelector('.gcalmk-np').checked = v; } });
+					}
+					document.getElementById('gcalmk-bulknoprint').addEventListener('click', function () { setNoPrint(true); });
+					document.getElementById('gcalmk-bulkprint').addEventListener('click', function () { setNoPrint(false); });
 					apply();
 				})();
 				</script>

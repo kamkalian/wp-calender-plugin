@@ -239,7 +239,7 @@
 
 	var DAY = 86400000;
 	// Abgesagte Termine ("entfällt" in beliebiger Groß-/Kleinschreibung im Titel) kommen nicht in den Ausdruck.
-	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title); }
+	function isCancelled(ev) { return /entf(ä|ae)llt/i.test(ev.title) || !!ev.noPrint; } // noPrint: in den Einstellungen vom Druck ausgenommen
 	function isoToTime(s) { var p = parseIso(s); return Date.UTC(p.y, p.m, p.d); }
 	function timeToIso(t) { var d = new Date(t); return iso(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); }
 	function printDate(s) { var p = parseIso(s); return pad(p.d) + '.' + pad(p.m + 1) + '.' + String(p.y).slice(2); }
