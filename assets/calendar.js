@@ -49,21 +49,20 @@
 	// ---- Ansichts-Einstellungen (Zahnrad), als Cookie gespeichert ---------------
 	var PREF_COOKIE = 'gcalmk_prefs';
 	function readPrefs() {
-		var p = { bars: true, view: 'month', wide: true };
+		var p = { bars: true, view: 'month' };
 		var m = document.cookie.match(new RegExp('(?:^|; )' + PREF_COOKIE + '=([^;]*)'));
 		if (m) {
 			try {
 				var o = JSON.parse(decodeURIComponent(m[1]));
 				if (o && typeof o === 'object' && (o.bars === 0 || o.bars === false)) { p.bars = false; }
 					if (o && o.view === 'list') { p.view = 'list'; }
-					if (o && (o.wide === 0 || o.wide === false)) { p.wide = false; }
 			} catch (e) { /* ungültiges Cookie ignorieren */ }
 		}
 		return p;
 	}
 	function savePrefs(p) {
 		try {
-			document.cookie = PREF_COOKIE + '=' + encodeURIComponent(JSON.stringify({ bars: p.bars ? 1 : 0, view: p.view === 'list' ? 'list' : 'month', wide: p.wide ? 1 : 0 })) +
+			document.cookie = PREF_COOKIE + '=' + encodeURIComponent(JSON.stringify({ bars: p.bars ? 1 : 0, view: p.view === 'list' ? 'list' : 'month' })) +
 				'; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
 		} catch (e) { /* Cookies gesperrt */ }
 	}
@@ -293,17 +292,6 @@
 		opt.appendChild(cb);
 		opt.appendChild(el('span', null, 'Farbige Balken anzeigen'));
 		pop.appendChild(opt);
-		var optW = el('label', 'gcalmk-opt');
-		var cbW = el('input');
-		cbW.type = 'checkbox';
-		cbW.checked = this.prefs.wide;
-		cbW.addEventListener('change', function () {
-			self.prefs.wide = cbW.checked;
-			savePrefs(self.prefs);
-		});
-		optW.appendChild(cbW);
-		optW.appendChild(el('span', null, 'Ausdruck: Querformat, zwei Spalten'));
-		pop.appendChild(optW);
 		var closePop = function () { pop.hidden = true; gear.setAttribute('aria-expanded', 'false'); };
 		gear.addEventListener('click', function () {
 			pop.hidden = !pop.hidden;
@@ -557,8 +545,7 @@
 		var sub = count + (count === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
 			(this.areaSel.length ? ' · Bereich: ' + esc(this.areaSel.join(', ')) : '') + (this.tagSel.length ? ' · Tag: ' + esc(this.tagSel.join(', ')) : '') + ' · Stand ' + shortDate(this.todayIso);
-		var wide = this.prefs.wide;
-		var css = '@page{size:A4 ' + (wide ? 'landscape;margin:10mm 10mm' : 'portrait;margin:14mm 12mm') + '}' +
+		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
 			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 4mm}' +
@@ -570,10 +557,9 @@
 			'tbody{page-break-inside:avoid;break-inside:avoid}tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
 			'td.t{width:42%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:16%;white-space:nowrap}' +
 			'.days .loc,.time .loc{font-size:inherit;color:inherit}' + // Datum, Uhrzeit und Zeitbereiche gleich groß
-			'.yr{font-weight:700}.closed{font-weight:700}.empty{margin:10mm 0;color:#555}' +
-			(wide ? '.cols{column-count:2;column-gap:9mm;column-fill:balance}.cols h2:first-child{margin-top:0}body{font-size:9.5pt}h1{font-size:16pt}' : '');
+			'.yr{font-weight:700}.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
-			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' + (wide ? '<div class="cols">' + html + '</div>' : html) +
+			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' + html +
 			'</body></html>';
 	};
 
