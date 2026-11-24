@@ -76,19 +76,25 @@
 	// Abstand des fixierten Kopfbereichs zum oberen Fensterrand (Shortcode-Attribut oben="70", z. B. bei festem Theme-Header).
 	function root_top(root) {
 		var v = parseInt(root.getAttribute('data-top'), 10);
-		if (!isNaN(v)) { return Math.max(0, v); }
-		// Ohne Angabe: Unterkante eines festen/mitlaufenden Theme-Headers am oberen Rand verwenden.
-		var best = 0;
+		return isNaN(v) ? null : Math.max(0, v);
+	}
+
+	// Fester/mitlaufender Theme-Header am oberen Rand: Unterkante und z-index (ändert sich beim Scrollen und Verkleinern des Fensters).
+	function headerInfo() {
+		var best = null;
 		try {
 			var hs = document.querySelectorAll('header, #site-header, #masthead, .site-header');
 			for (var i = 0; i < hs.length; i++) {
 				var cs = window.getComputedStyle(hs[i]);
 				if (cs.position !== 'fixed' && cs.position !== 'sticky') { continue; }
 				var r = hs[i].getBoundingClientRect();
-				if (r.height > 0 && r.top <= 1 && r.top > -r.height && r.bottom > best && r.bottom < 300) { best = Math.round(r.bottom); }
+				if (r.height > 0 && r.top <= 40 && r.bottom > 0 && r.bottom < 300 && (!best || r.bottom > best.bottom)) {
+					var z = parseInt(cs.zIndex, 10);
+					best = { bottom: r.bottom, z: isNaN(z) ? 0 : z, el: hs[i] };
+				}
 			}
 		} catch (e) { /* ignorieren */ }
-		return best > 0 ? best : null;
+		return best;
 	}
 
 	// "overflow: hidden" an übergeordneten Elementen verhindert position: sticky; "clip" schneidet gleich ab, ohne einen Scrollbereich zu bilden.
@@ -210,7 +216,37 @@
 		// und bleibt dann stehen (position: sticky), während der Rest der Tabelle weiterscrollt.
 		this.sticky = el('div', 'gcalmk-sticky');
 		var stickyTop = root_top(this.root);
-		if (stickyTop !== null) { this.root.style.setProperty('--gk-top', stickyTop + 'px'); }
+		if (stickyTop !== null) {
+			this.root.style.setProperty('--gk-top', stickyTop + 'px');
+		} else {
+			// Abstand und Ebene des Kopfbereichs laufend an den Theme-Header anpassen (unter ihm, bündig an seiner Unterkante).
+			var sync = function () {
+				var h = headerInfo();
+				if (h) {
+					// Der Theme-Header muss über dem Kalenderinhalt liegen (sonst läuft der Inhalt über die Menüleiste); der Kopfbereich rastet 1 px unter seiner Kante ein.
+					if (h.z < 50) { h.el.style.zIndex = '50'; h.z = 50; }
+					self.root.style.setProperty('--gk-top', Math.max(0, Math.round(h.bottom) - 1) + 'px');
+					self.sticky.style.zIndex = String(h.z - 1);
+				} else {
+					self.root.style.removeProperty('--gk-top');
+					self.sticky.style.zIndex = '';
+				}
+			};
+			var queued = false;
+			var queue = function () {
+				if (queued) { return; }
+				queued = true;
+				window.requestAnimationFrame(function () { queued = false; sync(); });
+			};
+			window.addEventListener('scroll', queue, { passive: true });
+			window.addEventListener('resize', queue);
+			window.addEventListener('load', queue);
+			if (window.ResizeObserver) {
+				var hi = headerInfo();
+				if (hi) { new ResizeObserver(queue).observe(hi.el); }
+			}
+			sync();
+		}
 
 		var top = el('div', 'gcalmk-top');
 		this.nav = el('div', 'gcalmk-nav');
