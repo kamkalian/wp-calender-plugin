@@ -221,6 +221,16 @@ class GCalMK_Settings {
 				$with_tag++;
 			}
 		}
+		// Termine ab heute ohne Tag: Titel eindeutig, mit Anzahl.
+		$untagged = array();
+		$today    = wp_date( 'Y-m-d' );
+		foreach ( $tagged as $ev ) {
+			if ( empty( $ev['tags'] ) && $ev['endDate'] >= $today ) {
+				$t              = trim( (string) $ev['title'] );
+				$untagged[ $t ] = isset( $untagged[ $t ] ) ? $untagged[ $t ] + 1 : 1;
+			}
+		}
+		ksort( $untagged, SORT_NATURAL | SORT_FLAG_CASE );
 		?>
 		<div class="wrap">
 			<h1>Google-Kalender</h1>
@@ -371,6 +381,18 @@ class GCalMK_Settings {
 				</script>
 				<?php submit_button( 'Speichern und synchronisieren' ); ?>
 			</form>
+
+			<h2>Termine ohne Tag (<?php echo (int) count( $untagged ); ?>)</h2>
+			<p class="description" style="max-width:900px">Termine ab heute, in deren Titel kein Tag vorkommt. Sie werden nicht gedruckt.</p>
+			<?php if ( $untagged ) : ?>
+				<ul style="list-style:disc;margin-left:20px">
+					<?php foreach ( $untagged as $t => $n ) : ?>
+						<li><?php echo esc_html( $t ); ?><?php echo $n > 1 ? ' <span style="color:#646970">(' . (int) $n . '×)</span>' : ''; ?></li>
+					<?php endforeach; ?>
+				</ul>
+			<?php else : ?>
+				<p>Alle kommenden Termine haben einen Tag.</p>
+			<?php endif; ?>
 
 			<h2>Bereiche und Tags sichern</h2>
 			<p class="description" style="max-width:900px">Lädt alle Bereiche und Tags (Name, Farbe, Bereich) als Datei herunter, damit du sie sichern oder auf eine andere Seite übertragen kannst. Mit „Einspielen“ stellst du sie später wieder her.</p>
