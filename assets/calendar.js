@@ -46,6 +46,32 @@
 		return ev.startDate === ev.endDate ? longDate(ev.startDate) : longDate(ev.startDate) + ' bis ' + longDate(ev.endDate);
 	}
 
+	// ---- Ansichts-Einstellungen (Zahnrad), als Cookie gespeichert ---------------
+	var PREF_COOKIE = 'gcalmk_prefs';
+	function readPrefs() {
+		var p = { bars: true };
+		var m = document.cookie.match(new RegExp('(?:^|; )' + PREF_COOKIE + '=([^;]*)'));
+		if (m) {
+			try {
+				var o = JSON.parse(decodeURIComponent(m[1]));
+				if (o && typeof o === 'object' && (o.bars === 0 || o.bars === false)) { p.bars = false; }
+			} catch (e) { /* ungültiges Cookie ignorieren */ }
+		}
+		return p;
+	}
+	function savePrefs(p) {
+		try {
+			document.cookie = PREF_COOKIE + '=' + encodeURIComponent(JSON.stringify({ bars: p.bars ? 1 : 0 })) +
+				'; max-age=31536000; path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+		} catch (e) { /* Cookies gesperrt */ }
+	}
+	// Feste Symbole (kein Fremdinhalt)
+	var ICON_GEAR = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+	var ICON_PRINT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>';
+	function esc(s) {
+		return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
+
 	// Abstand des fixierten Kopfbereichs zum oberen Fensterrand (Shortcode-Attribut oben="70", z. B. bei festem Theme-Header).
 	function root_top(root) {
 		var v = parseInt(root.getAttribute('data-top'), 10);
@@ -68,7 +94,9 @@
 		this.year = now.getFullYear();
 		this.month = now.getMonth();
 		this.todayIso = iso(now.getFullYear(), now.getMonth(), now.getDate());
+		this.prefs = readPrefs();
 		this.build();
+		this.applyPrefs();
 		this.load();
 	}
 
@@ -123,6 +151,8 @@
 		this.nav.appendChild(today);
 		top.appendChild(this.nav);
 
+		// Rechts oben: Suche, Drucken, Zahnrad (Ansicht einstellen)
+		var tools = el('div', 'gcalmk-tools');
 		if (this.showSearch) {
 			var box = el('div', 'gcalmk-search');
 			this.input = el('input');
@@ -138,8 +168,53 @@
 				}, 200);
 			});
 			box.appendChild(this.input);
-			top.appendChild(box);
+			tools.appendChild(box);
 		}
+
+		var printBtn = el('button', 'gcalmk-iconbtn');
+		printBtn.type = 'button';
+		printBtn.title = 'Angezeigten Monat drucken (DIN A4)';
+		printBtn.setAttribute('aria-label', 'Angezeigten Monat drucken');
+		printBtn.innerHTML = ICON_PRINT;
+		printBtn.addEventListener('click', function () { self.printMonth(); });
+		tools.appendChild(printBtn);
+
+		var gearWrap = el('div', 'gcalmk-gearwrap');
+		var gear = el('button', 'gcalmk-iconbtn');
+		gear.type = 'button';
+		gear.title = 'Ansicht einstellen';
+		gear.setAttribute('aria-label', 'Ansicht einstellen');
+		gear.setAttribute('aria-haspopup', 'true');
+		gear.setAttribute('aria-expanded', 'false');
+		gear.innerHTML = ICON_GEAR;
+		var pop = el('div', 'gcalmk-pop');
+		pop.hidden = true;
+		pop.setAttribute('role', 'group');
+		pop.setAttribute('aria-label', 'Ansicht einstellen');
+		pop.appendChild(el('p', 'gcalmk-pop-title', 'Ansicht'));
+		var opt = el('label', 'gcalmk-opt');
+		var cb = el('input');
+		cb.type = 'checkbox';
+		cb.checked = this.prefs.bars;
+		cb.addEventListener('change', function () {
+			self.prefs.bars = cb.checked;
+			savePrefs(self.prefs);
+			self.applyPrefs();
+		});
+		opt.appendChild(cb);
+		opt.appendChild(el('span', null, 'Farbige Balken anzeigen'));
+		pop.appendChild(opt);
+		var closePop = function () { pop.hidden = true; gear.setAttribute('aria-expanded', 'false'); };
+		gear.addEventListener('click', function () {
+			pop.hidden = !pop.hidden;
+			gear.setAttribute('aria-expanded', pop.hidden ? 'false' : 'true');
+		});
+		document.addEventListener('click', function (e) { if (!gearWrap.contains(e.target)) { closePop(); } });
+		gearWrap.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closePop(); gear.focus(); } });
+		gearWrap.appendChild(gear);
+		gearWrap.appendChild(pop);
+		tools.appendChild(gearWrap);
+		top.appendChild(tools);
 		this.sticky.appendChild(top);
 
 		// Wochentage gehören zum fixierten Kopf (nicht zum scrollenden Raster).
@@ -153,6 +228,108 @@
 		this.root.appendChild(this.body);
 		this.status = el('p', 'gcalmk-status', 'Lade Termine …');
 		this.body.appendChild(this.status);
+	};
+
+	// Farbige Balken (Linien und Punkte) ein-/ausblenden.
+	Calendar.prototype.applyPrefs = function () {
+		this.root.classList.toggle('gcalmk-nobars', !this.prefs.bars);
+	};
+
+	// ---- Drucken: angezeigter Monat auf DIN A4, jeder Termin nur einmal -----------------
+
+	// Tage eines Eintrags kompakt: "Mo: 2., 9., 16." / "2.–6., 9.–13." / "Do 5."
+	function daysText(y, m, list) {
+		var runs = [], i = 0, j;
+		while (i < list.length) {
+			j = i;
+			while (j + 1 < list.length && list[j + 1] === list[j] + 1) { j++; }
+			runs.push([list[i], list[j]]);
+			i = j + 1;
+		}
+		var wd = {};
+		list.forEach(function (d) { wd[weekday(y, m, d)] = true; });
+		var kinds = Object.keys(wd).map(Number).sort(function (a, b) { return a - b; });
+		// Einzelner Tag: "Do 5."  ·  bis 3 Wochentage: "Di/Do: 3., 5., 10."  ·  sonst nur Tage bzw. Bereiche: "2.–6., 9.–13."
+		if (list.length === 1) { return WDAYS[kinds[0]] + ' ' + list[0] + '.'; }
+		var prefix = kinds.length <= 3 ? kinds.map(function (k) { return WDAYS[k]; }).join('/') + ': ' : '';
+		return prefix + runs.map(function (r) {
+			return r[0] !== r[1] ? r[0] + '.–' + r[1] + '.' : r[0] + '.';
+		}).join(', ');
+	}
+
+	// Termine des Monats, gleiche Termine (Titel + Uhrzeit) zu einem Eintrag zusammengefasst.
+	Calendar.prototype.printEntries = function () {
+		var y = this.year, m = this.month, total = daysIn(y, m);
+		var first = iso(y, m, 1), last = iso(y, m, total), groups = {}, order = [];
+		this.filtered().forEach(function (ev) {
+			if (ev.endDate < first || ev.startDate > last) { return; }
+			var s = ev.startDate < first ? first : ev.startDate;
+			var e = ev.endDate > last ? last : ev.endDate;
+			var key = ev.title.toLowerCase().replace(/\s+/g, ' ').trim() + '|' + (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
+			var g = groups[key];
+			if (!g) {
+				g = groups[key] = { title: ev.title, allDay: ev.allDay, st: ev.startTime, et: ev.endTime, location: ev.location, tag: ev.tags[0] || '', days: {} };
+				order.push(g);
+			}
+			for (var d = parseIso(s).d; d <= parseIso(e).d; d++) { g.days[d] = true; }
+		});
+		order.forEach(function (g) {
+			g.list = Object.keys(g.days).map(Number).sort(function (a, b) { return a - b; });
+		});
+		order.sort(function (a, b) {
+			return (a.list[0] - b.list[0]) || (a.st < b.st ? -1 : (a.st > b.st ? 1 : 0)) || a.title.localeCompare(b.title, 'de');
+		});
+		return order;
+	};
+
+	Calendar.prototype.buildPrintHtml = function () {
+		var self = this, y = this.year, m = this.month;
+		var entries = this.printEntries();
+		var heading = MONTHS[m] + ' ' + y;
+		var rows = entries.map(function (g) {
+			var time = g.allDay ? 'ganztägig' : g.st + (g.et && g.et !== g.st ? '–' + g.et : '') + ' Uhr';
+			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
+			return '<tr><td class="t"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
+				(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>' +
+				'<td class="time">' + esc(time) + '</td><td>' + esc(daysText(y, m, g.list)) + '</td></tr>';
+		}).join('');
+		var sub = entries.length + (entries.length === 1 ? ' Termin' : ' verschiedene Termine') +
+			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
+		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
+			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
+			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
+			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 5mm}' +
+			'table{width:100%;border-collapse:collapse}' +
+			'th{text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#555;border-bottom:1.5pt solid #000;padding:1.5mm 2mm}' +
+			'td{padding:1.8mm 2mm;border-bottom:.5pt solid #bbb;vertical-align:top}' +
+			'tr{page-break-inside:avoid;break-inside:avoid}thead{display:table-header-group}' +
+			'td.t{width:46%}.ttl{font-weight:700}.loc{font-size:9pt;color:#444}.time{width:17%;white-space:nowrap}' +
+			'.empty{margin:10mm 0;color:#555}';
+		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
+			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
+			(entries.length ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="empty">Keine Termine in diesem Monat.</p>') +
+			'</body></html>';
+	};
+
+	Calendar.prototype.printMonth = function () {
+		var html = this.buildPrintHtml();
+		var f = document.createElement('iframe');
+		f.setAttribute('aria-hidden', 'true');
+		f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
+		document.body.appendChild(f);
+		var d = f.contentWindow.document;
+		d.open();
+		d.write(html);
+		d.close();
+		var done = false;
+		var go = function () {
+			if (done) { return; }
+			done = true;
+			try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { /* Druck nicht verfügbar */ }
+			setTimeout(function () { if (f.parentNode) { f.parentNode.removeChild(f); } }, 60000);
+		};
+		f.onload = go;
+		setTimeout(go, 300);
 	};
 
 	Calendar.prototype.load = function () {

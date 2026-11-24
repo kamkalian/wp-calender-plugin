@@ -75,6 +75,28 @@ body:has(.gcalmk-full) { overflow-x: clip; }
 	background: #fff; color: var(--gk-text); font: inherit;
 }
 
+/* Rechts oben: Suche, Drucken, Zahnrad */
+.gcalmk-tools { display: flex; align-items: center; gap: 8px; }
+.gcalmk-iconbtn {
+	display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0;
+	border: 1px solid var(--gk-border); border-radius: 4px; background: #fff; color: var(--gk-text);
+}
+.gcalmk-iconbtn:hover, .gcalmk-iconbtn[aria-expanded="true"] { border-color: var(--gk-accent); color: var(--gk-accent); }
+.gcalmk-gearwrap { position: relative; }
+.gcalmk-pop {
+	position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 250px; padding: 12px 14px;
+	background: #fff; border: 1px solid var(--gk-border); border-radius: 6px; box-shadow: 0 6px 20px rgba(0, 0, 0, .18);
+}
+.gcalmk-pop[hidden] { display: none; }
+.gcalmk-pop-title { margin: 0 0 8px; font-weight: 700; }
+.gcalmk-opt { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.gcalmk-opt input { width: 16px; height: 16px; margin: 0; accent-color: var(--gk-accent); }
+
+/* Farbige Balken (Linien und Punkte) ausgeblendet */
+.gcalmk-nobars .gcalmk-lane, .gcalmk-nobars .gcalmk-ldot { display: none; }
+.gcalmk-nobars .gcalmk-item { padding-left: 0 !important; }
+.gcalmk-nobars .gcalmk-pill-allday { border-left: 0 !important; }
+
 .gcalmk-status { margin: 12px 0; color: var(--gk-secondary); }
 
 /* Raster */
@@ -209,6 +231,8 @@ body.admin-bar .gcalmk { --gk-top: 32px; }
 	.gcalmk-pill { padding: 6px 8px; }
 	.gcalmk-p-title { font-size: 1em; }
 	.gcalmk-top { flex-direction: column; align-items: stretch; }
+	.gcalmk-tools { width: 100%; }
+	.gcalmk-search { flex: 1; }
 	.gcalmk-search input { width: 100%; }
 	.gcalmk-r-date { min-width: 5.5em; }
 }
