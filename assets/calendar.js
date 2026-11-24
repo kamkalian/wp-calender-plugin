@@ -252,6 +252,16 @@
 		// Einzelner Tag: "Do 5."  ·  bis 3 Wochentage: "Di/Do: 3., 5., 10."  ·  sonst nur Tage bzw. Bereiche: "2.–6., 9.–13."
 		if (list.length === 1) { return WDAYS[kinds[0]] + ' ' + list[0] + '.'; }
 		var prefix = kinds.length <= 3 ? kinds.map(function (k) { return WDAYS[k]; }).join('/') + ': ' : '';
+		if (kinds.length >= 2 && kinds.length <= 3) {
+			// Mehrere Wochentage: Tage derselben Woche mit "/" verbinden, z. B. "Di/Do: 3./5., 10./12."
+			var weeks = {}, order = [];
+			list.forEach(function (d) {
+				var wk = d - weekday(y, m, d);
+				if (!weeks[wk]) { weeks[wk] = []; order.push(wk); }
+				weeks[wk].push(d + '.');
+			});
+			return prefix + order.map(function (wk) { return weeks[wk].join('/'); }).join(', ');
+		}
 		return prefix + runs.map(function (r) {
 			return r[0] !== r[1] ? r[0] + '.–' + r[1] + '.' : r[0] + '.';
 		}).join(', ');
