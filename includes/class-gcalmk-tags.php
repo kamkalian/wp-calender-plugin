@@ -54,6 +54,7 @@ class GCalMK_Tags {
 		$d['titles'] = isset( $d['titles'] ) && is_array( $d['titles'] ) ? $d['titles'] : array();
 		$d['colors'] = isset( $d['colors'] ) && is_array( $d['colors'] ) ? $d['colors'] : array();
 		$d['noprint'] = isset( $d['noprint'] ) && is_array( $d['noprint'] ) ? $d['noprint'] : array(); // Titel-Schlüssel => 1: nicht im Ausdruck.
+		$d['groups']  = isset( $d['groups'] ) && is_array( $d['groups'] ) ? $d['groups'] : array();   // Titel-Schlüssel => Name der Druckgruppe.
 		return $d;
 	}
 
@@ -137,10 +138,29 @@ class GCalMK_Tags {
 		$data   = self::data();
 		$disp   = array(); // normalisierter Tag => Anzeigename (erste Schreibweise).
 		$colors = array();
+		$glist  = array(); // normalisierter Gruppenname => Name aus der Gruppenliste der Einstellungen.
+		$sett   = GCalMK_Settings::get();
+		foreach ( $sett['print_groups'] as $gn ) {
+			$glist[ self::norm( $gn ) ] = $gn;
+		}
 		foreach ( $events as $i => $ev ) {
 			$key = self::title_key( $ev['title'] );
 			if ( ! empty( $data['noprint'][ $key ] ) ) {
 				$events[ $i ]['noPrint'] = true; // laut Einstellungen nicht im Ausdruck
+			}
+			// Druckgruppe: zuerst die Beschriftung "Gruppe: …" im Google-Termin, sonst die Zuordnung in den Einstellungen.
+			$gname = '';
+			foreach ( array( isset( $ev['group'] ) ? $ev['group'] : '', isset( $data['groups'][ $key ] ) ? $data['groups'][ $key ] : '' ) as $cand ) {
+				$ck = self::norm( $cand );
+				if ( '' !== $ck && isset( $glist[ $ck ] ) ) {
+					$gname = $glist[ $ck ];
+					break;
+				}
+			}
+			if ( '' !== $gname ) {
+				$events[ $i ]['group'] = $gname;
+			} else {
+				unset( $events[ $i ]['group'] );
 			}
 			$tag = self::effective_tag( $ev['title'], $key, $data );
 			$tn  = self::norm( $tag );
@@ -185,11 +205,12 @@ class GCalMK_Tags {
 		if ( ! is_array( $in ) ) {
 			return $data;
 		}
-		if ( isset( $in['titles'] ) || isset( $in['colors'] ) || isset( $in['noprint'] ) ) {
+		if ( isset( $in['titles'] ) || isset( $in['colors'] ) || isset( $in['noprint'] ) || isset( $in['groups'] ) ) {
 			return array(
 				'titles'  => isset( $in['titles'] ) && is_array( $in['titles'] ) ? $in['titles'] : array(),
 				'colors'  => isset( $in['colors'] ) && is_array( $in['colors'] ) ? $in['colors'] : array(),
 				'noprint' => isset( $in['noprint'] ) && is_array( $in['noprint'] ) ? $in['noprint'] : array(),
+				'groups'  => isset( $in['groups'] ) && is_array( $in['groups'] ) ? $in['groups'] : array(),
 			);
 		}
 
@@ -216,6 +237,14 @@ class GCalMK_Tags {
 				$data['noprint'][ $k ] = 1; // nicht drucken
 			} else {
 				unset( $data['noprint'][ $k ] );
+			}
+			if ( isset( $row['g'] ) ) { // Druckgruppe ('' = automatisch)
+				$gname = mb_substr( trim( sanitize_text_field( (string) $row['g'] ) ), 0, 80, 'UTF-8' );
+				if ( '' !== $gname ) {
+					$data['groups'][ $k ] = $gname;
+				} else {
+					unset( $data['groups'][ $k ] );
+				}
 			}
 			$hex = isset( $row['c'] ) ? strtolower( (string) $row['c'] ) : '';
 			if ( '' !== $tn && isset( $allowed[ $hex ] ) ) {

@@ -87,6 +87,7 @@
 		this.tagsOpen = false;
 		this.tagRecurring = {};
 		this.colors = {};
+		this.groups = []; // Gruppen des Ausdrucks (Überschriften in Reihenfolge)
 		this.query = '';
 		this.events = [];
 		this.tags = [];
@@ -374,9 +375,11 @@
 			var tk = printTitle(ev.title), key = tk.key;
 			var g = groups[key];
 			if (!g) {
-				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', slots: {}, slotOrder: [] };
+				g = groups[key] = { title: tk.display, location: ev.location, tag: ev.tags[0] || '', group: '', recurring: false, slots: {}, slotOrder: [] };
 				order.push(g);
 			}
+			if (!g.group && ev.group) { g.group = ev.group; }   // Druckgruppe (Beschriftung im Termin oder Einstellungen)
+			if (ev.recurring) { g.recurring = true; }
 			// geschlossene Tage bilden einen Abschnitt ohne Uhrzeit
 			var sk = tk.closed ? 'geschlossen' : (ev.allDay ? 'ganztags' : ev.startTime + '-' + ev.endTime);
 			var s = g.slots[sk];
@@ -406,32 +409,62 @@
 		var entries = this.printEntries();
 		var heading = 'ab ' + shortDate(this.todayIso);
 		var lastDay = '';
-		var body = entries.map(function (g) {
-			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
-			var n = g.slotOrder.length;
-			var rows = g.slotOrder.map(function (s, i) {
-				if (s.list[s.list.length - 1] > lastDay) { lastDay = s.list[s.list.length - 1]; }
-				var time = s.allDay ? 'ganztägig' : s.st + (s.et && s.et !== s.st ? '–' + s.et : '') + ' Uhr';
-				var dt = datesText(s.list);
-				var cell = '';
-				if (i === 0) {
-					cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
-						(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
-				}
-				// geschlossene Tage: nur "GESCHLOSSEN", keine Uhrzeit
-				var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' : esc(time);
-				return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + dt.html + '</td></tr>';
+
+		// eine Tabelle (Termin | Zeit | Tage) für eine Liste von Einträgen
+		var renderTable = function (list) {
+			var body = list.map(function (g) {
+				var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
+				var n = g.slotOrder.length;
+				var rows = g.slotOrder.map(function (s, i) {
+					if (s.list[s.list.length - 1] > lastDay) { lastDay = s.list[s.list.length - 1]; }
+					var time = s.allDay ? 'ganztägig' : s.st + (s.et && s.et !== s.st ? '–' + s.et : '') + ' Uhr';
+					var dt = datesText(s.list);
+					var cell = '';
+					if (i === 0) {
+						cell = '<td class="t" rowspan="' + n + '"' + bar + '><div class="ttl">' + esc(g.title) + '</div>' +
+							(g.location ? '<div class="loc">' + esc(g.location) + '</div>' : '') + '</td>';
+					}
+					// geschlossene Tage: nur "GESCHLOSSEN", keine Uhrzeit
+					var timeHtml = s.closed ? '<div class="closed">GESCHLOSSEN</div>' : esc(time);
+					return '<tr' + (i < n - 1 ? ' class="more"' : '') + '>' + cell + '<td class="time">' + timeHtml + '</td><td class="days">' + dt.html + '</td></tr>';
+				}).join('');
+				return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
 			}).join('');
-			return '<tbody>' + rows + '</tbody>'; // je Termin ein eigener Block (wird nicht über Seiten getrennt)
-		}).join('');
-		var n = entries.length;
+			return '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>';
+		};
+
+		// Aufteilung nach Gruppen (Reihenfolge wie in den Einstellungen). Nicht zugeordnet: wiederkehrende Termine in die erste
+		// Gruppe, Einzeltermine unter "Sonstige Veranstaltungen".
+		var names = this.groups.slice();
+		var other = '';
+		names.forEach(function (nm) { if (!other && /^sonstige/i.test(nm)) { other = nm; } });
+		if (!other) { other = 'Sonstige Veranstaltungen'; }
+		var firstGroup = names.length && names[0] !== other ? names[0] : '';
+		var buckets = {};
+		entries.forEach(function (g) {
+			var nm = g.group || (g.recurring && firstGroup ? firstGroup : other);
+			(buckets[nm] = buckets[nm] || []).push(g);
+		});
+		var order = names.filter(function (nm) { return buckets[nm]; });
+		if (buckets[other] && order.indexOf(other) === -1) { order.push(other); }
+
+		var n = entries.length, html;
+		if (!n) {
+			html = '<p class="empty">Keine Termine in diesem Zeitraum.</p>';
+		} else if (!names.length) {
+			html = renderTable(entries); // keine Gruppen eingerichtet: eine Liste
+		} else {
+			html = order.map(function (nm) { return '<h2>' + esc(nm) + '</h2>' + renderTable(buckets[nm]); }).join('');
+		}
+
 		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
 			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
 			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
 			'body{font:10.5pt/1.35 Arial,Helvetica,sans-serif;color:#000}' +
-			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 5mm}' +
+			'h1{font-size:19pt;margin:0 0 1.5mm}.sub{color:#555;font-size:9.5pt;margin:0 0 4mm}' +
+			'h2{font-size:14pt;margin:7mm 0 2mm;padding-bottom:1mm;border-bottom:1pt solid #000;page-break-after:avoid;break-after:avoid}' +
 			'table{width:100%;border-collapse:collapse}' +
 			'th{text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em;color:#555;border-bottom:1.5pt solid #000;padding:1.5mm 2mm}' +
 			'td{padding:1.8mm 2mm;border-bottom:.5pt solid #bbb;vertical-align:top}' +
@@ -441,8 +474,7 @@
 			'.days .loc,.time .loc{font-size:inherit;color:inherit}' + // Datum, Uhrzeit und Zeitbereiche gleich groß
 			'.yr{font-weight:700}.closed{font-weight:700}.empty{margin:10mm 0;color:#555}';
 		return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Termine ' + esc(heading) + '</title><style>' + css + '</style></head><body>' +
-			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' +
-			(n ? '<table><thead><tr><th>Termin</th><th>Zeit</th><th>Tage</th></tr></thead>' + body + '</table>' : '<p class="empty">Keine Termine in diesem Zeitraum.</p>') +
+			'<h1>Termine ' + esc(heading) + '</h1><p class="sub">' + sub + '</p>' + html +
 			'</body></html>';
 	};
 
@@ -477,6 +509,7 @@
 			.then(function (data) {
 				self.events = data.events || [];
 				self.colors = data.colors || {};
+				self.groups = data.groups || [];
 				self.computeTags();
 				if (self.tag) {
 					// Vorgewählten Tag (Shortcode) auf die tatsächliche Schreibweise abbilden.

@@ -33,12 +33,28 @@ class GCalMK_Settings {
 				'calendar_id'    => '',
 				'months_back'    => 3,
 				'months_forward' => 12,
+				'print_groups'   => self::default_groups(),
 			)
 		);
+		if ( ! is_array( $s['print_groups'] ) ) {
+			$s['print_groups'] = self::default_groups();
+		}
 		if ( defined( 'GCALMK_API_KEY' ) && '' !== GCALMK_API_KEY ) {
 			$s['api_key'] = (string) GCALMK_API_KEY;
 		}
 		return $s;
+	}
+
+	/** Gruppen des Ausdrucks (Überschriften, in dieser Reihenfolge). */
+	public static function default_groups() {
+		return array(
+			'Treffen und Angebote',
+			'Selbsthilfegruppen und Beratungen',
+			'Unsere Jugendangebote',
+			'Sonstige Veranstaltungen',
+			'Vorschau Tagesfahrten / Wanderungen / Urlaub',
+			'Geschäftsstelle',
+		);
 	}
 
 	public static function action_links( $links ) {
@@ -83,7 +99,24 @@ class GCalMK_Settings {
 
 		$cal = isset( $in['calendar_id'] ) ? trim( sanitize_text_field( $in['calendar_id'] ) ) : '';
 
+		// Gruppen des Ausdrucks: ein Name pro Zeile (WordPress ruft die Bereinigung teils zweimal auf, daher auch Arrays).
+		if ( isset( $in['print_groups'] ) ) {
+			$raw_g = is_array( $in['print_groups'] ) ? $in['print_groups'] : preg_split( '/\r\n|\r|\n/', (string) $in['print_groups'] );
+		} elseif ( isset( $old['print_groups'] ) && is_array( $old['print_groups'] ) ) {
+			$raw_g = $old['print_groups'];
+		} else {
+			$raw_g = self::default_groups();
+		}
+		$groups = array();
+		foreach ( $raw_g as $g ) {
+			$g = mb_substr( trim( sanitize_text_field( (string) $g ) ), 0, 80, 'UTF-8' );
+			if ( '' !== $g && ! isset( $groups[ mb_strtolower( $g, 'UTF-8' ) ] ) ) {
+				$groups[ mb_strtolower( $g, 'UTF-8' ) ] = $g;
+			}
+		}
+
 		return array(
+			'print_groups'   => array_slice( array_values( $groups ), 0, 20 ),
 			'api_key'        => $key,
 			'calendar_id'    => $cal,
 			'months_back'    => max( 0, min( 24, (int) ( isset( $in['months_back'] ) ? $in['months_back'] : 3 ) ) ),
@@ -189,6 +222,13 @@ class GCalMK_Settings {
 							<input type="number" min="1" max="36" name="<?php echo esc_attr( self::OPTION ); ?>[months_forward]" value="<?php echo esc_attr( $s['months_forward'] ); ?>" class="small-text"> Monate voraus
 						</td>
 					</tr>
+				<tr>
+						<th scope="row"><label for="gcalmk_groups">Gruppen im Ausdruck</label></th>
+						<td>
+							<textarea id="gcalmk_groups" name="<?php echo esc_attr( self::OPTION ); ?>[print_groups]" rows="7" class="large-text"><?php echo esc_textarea( implode( "\n", $s['print_groups'] ) ); ?></textarea>
+							<p class="description">Überschriften des Ausdrucks, ein Name pro Zeile, in dieser Reihenfolge. Jeder Termin kommt in eine Gruppe: entweder per Auswahl unten in der Tabelle oder automatisch über eine Zeile <code>Gruppe: Name</code> in der Beschreibung des Google-Termins (hat Vorrang). Nicht zugeordnete wiederkehrende Termine landen in der ersten Gruppe, nicht zugeordnete Einzeltermine unter „Sonstige Veranstaltungen“.</p>
+						</td>
+					</tr>
 				</table>
 				<?php
 				$tdata   = GCalMK_Tags::data();
@@ -232,10 +272,18 @@ class GCalMK_Settings {
 						<span style="margin-left:12px">Ausdruck:</span>
 						<button type="button" class="button" id="gcalmk-bulknoprint">nicht drucken</button>
 						<button type="button" class="button" id="gcalmk-bulkprint">wieder drucken</button>
+						<span style="margin-left:12px">Gruppe:</span>
+						<select id="gcalmk-bulkgroup" aria-label="Gruppe für alle angezeigten Termine">
+							<option value="">(automatisch)</option>
+							<?php foreach ( $s['print_groups'] as $gn ) : ?>
+								<option value="<?php echo esc_attr( $gn ); ?>"><?php echo esc_html( $gn ); ?></option>
+							<?php endforeach; ?>
+						</select>
+						<button type="button" class="button" id="gcalmk-bulkgroupset">setzen</button>
 					</p>
 					<div style="max-height:560px;overflow:auto;border:1px solid #c3c4c7;background:#fff;max-width:1000px">
 						<table class="widefat striped" id="gcalmk-events" style="border:0">
-							<thead><tr><th>Termin</th><th style="width:70px">Anzahl</th><th style="width:480px">Tag</th><th style="width:110px">Nicht drucken</th></tr></thead>
+							<thead><tr><th>Termin</th><th style="width:70px">Anzahl</th><th style="width:480px">Tag</th><th style="width:230px">Gruppe</th><th style="width:110px">Nicht drucken</th></tr></thead>
 							<tbody>
 							<?php foreach ( $uniq as $k => $u ) : ?>
 								<?php
@@ -251,7 +299,15 @@ class GCalMK_Settings {
 										<button type="button" class="button gcalmk-del" aria-label="Tag löschen">Löschen</button>
 										<select class="gcalmk-col" style="color:<?php echo esc_attr( $hex ); ?>" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][c]" aria-label="Farbe"><?php echo $color_options( $hex ); // phpcs:ignore WordPress.Security.EscapeOutput ?></select>
 									</td>
-								<td style="text-align:center">
+								<td>
+										<select class="gcalmk-grp" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][g]" aria-label="Gruppe im Ausdruck">
+											<option value="">(automatisch)</option>
+											<?php foreach ( $s['print_groups'] as $gn ) : ?>
+												<option value="<?php echo esc_attr( $gn ); ?>"<?php selected( isset( $tdata['groups'][ $k ] ) ? $tdata['groups'][ $k ] : '', $gn ); ?>><?php echo esc_html( $gn ); ?></option>
+											<?php endforeach; ?>
+										</select>
+									</td>
+									<td style="text-align:center">
 										<input type="checkbox" class="gcalmk-np" name="<?php echo esc_attr( $o_tag ); ?>[<?php echo esc_attr( $k ); ?>][p]" value="1"<?php checked( ! empty( $tdata['noprint'][ $k ] ) ); ?> aria-label="<?php echo esc_attr( $u['title'] ); ?> nicht drucken">
 									</td>
 								</tr>
@@ -331,6 +387,10 @@ class GCalMK_Settings {
 					}
 					document.getElementById('gcalmk-bulknoprint').addEventListener('click', function () { setNoPrint(true); });
 					document.getElementById('gcalmk-bulkprint').addEventListener('click', function () { setNoPrint(false); });
+					document.getElementById('gcalmk-bulkgroupset').addEventListener('click', function () {
+						var v = document.getElementById('gcalmk-bulkgroup').value;
+						rows.forEach(function (r) { if (visible(r)) { r.querySelector('.gcalmk-grp').value = v; } });
+					});
 					apply();
 				})();
 				</script>
