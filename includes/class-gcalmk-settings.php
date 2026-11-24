@@ -264,7 +264,7 @@ class GCalMK_Settings {
 
 				<h2>Tags</h2>
 				<p class="description" style="max-width:900px">
-					Tags legst du hier <strong>manuell</strong> an. Ein Termin bekommt einen Tag, wenn der Tag-Name <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, auch als Teil eines Worts: „Cafe“ passt zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
+					Tags legst du hier <strong>manuell</strong> an. Ein Termin bekommt einen Tag, wenn der Tag-Name <strong>im Titel</strong> vorkommt (Groß-/Kleinschreibung egal, nur als <strong>ganzes Wort</strong>: „Cafe“ passt zu „Cafe am Markt“ und „AWO-Cafe“, nicht zu „SonntagsCafe“). Ein Termin kann mehrere Tags haben.
 					Der Tag, der im Titel <strong>zuerst</strong> vorkommt und einen Bereich hat, entscheidet über den Bereich im Ausdruck – ein Termin steht nur in einem Bereich. Tags ohne Bereich dienen nur als Filter im Kalender. <strong>Gedruckt werden nur Termine mit einem Bereich.</strong>
 				</p>
 				<table class="widefat striped" id="gcalmk-tagtable" style="max-width:920px">

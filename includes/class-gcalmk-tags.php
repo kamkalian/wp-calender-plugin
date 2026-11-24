@@ -5,8 +5,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Tags werden in den Einstellungen manuell angelegt (Name, Farbe, optional Bereich im Ausdruck).
- * Ein Termin bekommt einen Tag, wenn der Tag-Name im Titel vorkommt (Groß-/Kleinschreibung egal, auch als Wortteil,
- * z. B. "Cafe" in "SonntagsCafe"). Ein Termin kann mehrere Tags haben. Der Tag, der im Titel zuerst vorkommt und einen
+ * Ein Termin bekommt einen Tag, wenn der Tag-Name im Titel als ganzes Wort vorkommt (Groß-/Kleinschreibung egal,
+ * "Cafe" passt zu "Cafe am Markt", nicht zu "SonntagsCafe"). Ein Termin kann mehrere Tags haben. Der Tag, der im Titel zuerst vorkommt und einen
  * Bereich hat, entscheidet über den Bereich im Ausdruck (ein Termin steht nur in einem Bereich).
  * Tags ohne Bereich dienen nur als Filter im Kalender.
  *
@@ -81,7 +81,6 @@ class GCalMK_Tags {
 	 * sortiert (bei gleicher Stelle der längere Tag zuerst, dann die Reihenfolge der Einstellungen).
 	 */
 	public static function match( $title, $cfg ) {
-		$lc   = mb_strtolower( (string) $title, 'UTF-8' );
 		$hits = array();
 		$idx  = 0;
 		foreach ( $cfg as $n => $c ) {
@@ -89,9 +88,9 @@ class GCalMK_Tags {
 			if ( '' === $n ) {
 				continue;
 			}
-			$pos = mb_strpos( $lc, $n, 0, 'UTF-8' );
-			if ( false !== $pos ) {
-				$hits[] = array( $pos, -mb_strlen( $n, 'UTF-8' ), $idx, $n );
+			// nur als ganzes Wort: davor und danach kein Buchstabe und keine Ziffer (Bindestrich, Leerzeichen, Klammer usw. sind Wortgrenzen)
+			if ( preg_match( '/(?<![\p{L}\p{N}])' . preg_quote( $n, '/' ) . '(?![\p{L}\p{N}])/iu', (string) $title, $m, PREG_OFFSET_CAPTURE ) ) {
+				$hits[] = array( $m[0][1], -mb_strlen( $n, 'UTF-8' ), $idx, $n );
 			}
 		}
 		usort(
