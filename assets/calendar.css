@@ -285,3 +285,16 @@ body.admin-bar .gcalmk { --gk-top: 32px; }
 	.gcalmk-search input { width: 100%; }
 	.gcalmk-r-date { min-width: 5.5em; }
 }
+
+/* Kompakte Kopfzeile: alle Bedienelemente gleich hoch, Titel ohne Theme-Abstände (h3-Ränder des Themes) */
+html body .gcalmk .gcalmk-top { gap: 8px; margin-bottom: 6px; }
+html body .gcalmk .gcalmk-title { margin: 0 8px; padding: 0; min-width: 10ch; font-size: 1.15em; line-height: 1.2; }
+html body .gcalmk .gcalmk-top .gcalmk-btn,
+html body .gcalmk .gcalmk-top .gcalmk-dropbtn,
+html body .gcalmk .gcalmk-top .gcalmk-viewbtn,
+html body .gcalmk .gcalmk-top .gcalmk-search input { height: 30px; padding-top: 0; padding-bottom: 0; line-height: 1.2; font-size: .95em; margin: 0; }
+html body .gcalmk .gcalmk-top .gcalmk-btn { padding-left: 12px; padding-right: 12px; display: inline-flex; align-items: center; }
+html body .gcalmk .gcalmk-top .gcalmk-iconbtn { width: 30px; height: 30px; margin: 0; }
+html body .gcalmk .gcalmk-top .gcalmk-iconbtn svg { width: 16px; height: 16px; }
+html body .gcalmk .gcalmk-sticky { padding-top: 4px; }
+html body .gcalmk .gcalmk-wd { padding: 5px 6px; }
