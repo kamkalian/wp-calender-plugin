@@ -707,13 +707,21 @@
 		var list = this.filtered();
 		var asList = this.prefs.view === 'list';
 		for (var k in this.viewBtns) { this.viewBtns[k].setAttribute('aria-pressed', (k === 'list') === asList ? 'true' : 'false'); }
-		if (asList || this.query.length >= 2) {
+		if (asList) {
 			this.nav.classList.add('gcalmk-hidden');
 			this.weekdays.hidden = true;
 			this.renderSearch(list);
 		} else {
 			this.nav.classList.remove('gcalmk-hidden');
 			this.weekdays.hidden = false;
+			if (this.query.length >= 2) {
+				// Die Suche bleibt in der Kalenderansicht: nur passende Termine, mit Hinweis auf die Gesamtzahl.
+				var q = this.query.toLowerCase();
+				list = list.filter(function (ev) {
+					return (ev.title + ' ' + ev.location + ' ' + ev.description.replace(/<[^>]*>/g, ' ') + ' ' + ev.tags.join(' ')).toLowerCase().indexOf(q) !== -1;
+				});
+				this.body.appendChild(el('p', 'gcalmk-status', list.length + (list.length === 1 ? ' Treffer' : ' Treffer') + ' für „' + this.query + '“ (alle Monate) – in der Ansicht „Liste“ siehst du sie untereinander.'));
+			}
 			this.renderMonth(list);
 		}
 	};
