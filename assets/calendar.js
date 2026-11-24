@@ -255,28 +255,71 @@
 	// Kurzes Datum "03.06."
 	function shortDay(s) { var p = parseIso(s); return pad(p.d) + '.' + pad(p.m + 1) + '.'; }
 
+	var WDAY_ADV = ['montags', 'dienstags', 'mittwochs', 'donnerstags', 'freitags', 'samstags', 'sonntags'];
+
+	// Erkennt eine Wiederholung und beschreibt sie in Worten, sonst null. Toleriert Ausnahmen (Ferien, Feiertage):
+	// Eine Regel gilt, wenn sie auf mindestens 85 % der Termine zutrifft.
+	//   "jeden Montag" · "Mo–Fr" · "alle 14 Tage mittwochs" · "jeden 1. Mittwoch im Monat" · "jeden letzten Freitag im Monat"
+	function recurrenceText(list, byWd) {
+		var kinds = Object.keys(byWd).map(Number).sort(function (a, b) { return a - b; });
+		var share = function (hit, total) { return total > 0 && hit / total >= 0.85; };
+
+		if (kinds.length === 1) {
+			var wd = kinds[0], n = list.length, i;
+			// 1) fester Abstand in Wochen: 7 = jede Woche, 14 = alle 14 Tage, 28 = alle 28 Tage …
+			var gaps = {}, gtot = 0;
+			for (i = 1; i < n; i++) {
+				var g = (isoToTime(list[i]) - isoToTime(list[i - 1])) / DAY;
+				gaps[g] = (gaps[g] || 0) + 1;
+				gtot++;
+			}
+			var best = 0, bestN = 0;
+			Object.keys(gaps).forEach(function (k) { if (gaps[k] > bestN) { bestN = gaps[k]; best = +k; } });
+			if (gtot >= 3 && best % 7 === 0 && share(bestN, gtot)) {
+				return best === 7 ? 'jeden ' + WDAYS_LONG[wd] : 'alle ' + best + ' Tage ' + WDAY_ADV[wd];
+			}
+			// 2) monatlich am gleichen Wochentag der Woche: "jeden 2. Mittwoch im Monat" / "jeden letzten …"
+			if (n >= 4) {
+				var nth = {}, last = 0;
+				list.forEach(function (s) {
+					var p = parseIso(s), k = Math.ceil(p.d / 7);
+					nth[k] = (nth[k] || 0) + 1;
+					if (p.d + 7 > daysIn(p.y, p.m)) { last++; }
+				});
+				for (var k = 1; k <= 4; k++) {
+					if (share(nth[k] || 0, n)) { return 'jeden ' + k + '. ' + WDAYS_LONG[wd] + ' im Monat'; }
+				}
+				if (share(last, n)) { return 'jeden letzten ' + WDAYS_LONG[wd] + ' im Monat'; }
+			}
+			return null;
+		}
+
+		// mehrere Wochentage: wöchentlich, wenn auf jeden Wochentag mindestens 85 % der Abstände genau 7 Tage betragen
+		var tot = 0, w7 = 0;
+		kinds.forEach(function (k) {
+			var a = byWd[k];
+			for (var j = 1; j < a.length; j++) {
+				tot++;
+				if (isoToTime(a[j]) - isoToTime(a[j - 1]) === 7 * DAY) { w7++; }
+			}
+		});
+		if (tot >= 3 && share(w7, tot)) { return weekdayText(kinds); }
+		return null;
+	}
+
 	// Text für die Spalte "Tage":
 	//  - einzelner Tag: "So 24.01.27"
-	//  - immer wöchentlich (mind. 85 % der Abstände je Wochentag sind genau 7 Tage, Ferien/Feiertage stören nicht):
-	//    Wochentag(e) und Zeitraum in einer Zeile, z. B. "Mo–Fr · 02.11.26 – 30.11.27"
-	//  - sonst (monatlich, alle 2 Wochen, unregelmäßig): die einzelnen Tage mit kurzem Datum, nach Jahren getrennt,
-	//    z. B. "2027: 07.01., 04.02., 04.03."
+	//  - erkannte Wiederholung: Beschreibung und Zeitraum in einer Zeile, z. B. "alle 14 Tage mittwochs · 02.12.26 – 24.11.27"
+	//  - sonst (unregelmäßig): die einzelnen Tage mit kurzem Datum, nach Jahren getrennt, z. B. "2027: 07.01., 04.02., 04.03."
 	// Gibt fertiges (bereits maskiertes) HTML zurück.
 	function datesText(list) {
 		if (list.length === 1) { return { html: esc(WDAYS[wdOf(list[0])] + ' ' + printDate(list[0])) }; }
 
-		var byWd = {}, tot = 0, w7 = 0;
+		var byWd = {};
 		list.forEach(function (s) { var k = wdOf(s); (byWd[k] = byWd[k] || []).push(s); });
-		Object.keys(byWd).forEach(function (k) {
-			var a = byWd[k];
-			for (var i = 1; i < a.length; i++) {
-				tot++;
-				if (isoToTime(a[i]) - isoToTime(a[i - 1]) === 7 * DAY) { w7++; }
-			}
-		});
-		if (tot >= 3 && w7 / tot >= 0.85) {
-			var wds = Object.keys(byWd).map(Number).sort(function (a, b) { return a - b; });
-			return { html: esc(weekdayText(wds)) + ' · ' + esc(printDate(list[0]) + ' – ' + printDate(list[list.length - 1])) };
+		var rec = recurrenceText(list, byWd);
+		if (rec) {
+			return { html: esc(rec + ' · ' + printDate(list[0]) + ' – ' + printDate(list[list.length - 1])) };
 		}
 
 		var years = {}, order = [];
