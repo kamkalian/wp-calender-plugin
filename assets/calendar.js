@@ -325,7 +325,7 @@
 	// Eindeutige Termine (nach Titel) ab dem ersten Tag des angezeigten Monats; jeder erscheint genau einmal.
 	// Hat ein Termin mehrere Uhrzeiten, bekommt er je Uhrzeit einen Abschnitt ("slot") mit eigenen Tagen.
 	Calendar.prototype.printEntries = function () {
-		var from = iso(this.year, this.month, 1), groups = {}, order = [];
+		var from = this.todayIso, groups = {}, order = []; // nur Termine ab heute
 		this.filtered().forEach(function (ev) {
 			if (isCancelled(ev) || ev.endDate < from) { return; }
 			var tk = printTitle(ev.title), key = tk.key;
@@ -361,7 +361,7 @@
 	Calendar.prototype.buildPrintHtml = function () {
 		var self = this;
 		var entries = this.printEntries();
-		var heading = 'ab ' + MONTHS[this.month] + ' ' + this.year;
+		var heading = 'ab ' + shortDate(this.todayIso);
 		var lastDay = '';
 		var body = entries.map(function (g) {
 			var bar = self.prefs.bars ? ' style="border-left:4pt solid ' + esc(self.colorOf(g.tag)) + '"' : '';
@@ -383,7 +383,7 @@
 		}).join('');
 		var n = entries.length;
 		var sub = n + (n === 1 ? ' Termin' : ' verschiedene Termine') +
-			(n ? ' · Zeitraum ' + printDate(iso(this.year, this.month, 1)) + ' – ' + printDate(lastDay) : '') +
+			(n ? ' · Zeitraum ' + printDate(this.todayIso) + ' – ' + printDate(lastDay) : '') +
 			(this.tag ? ' · Filter: ' + esc(this.tag) : '') + ' · Stand ' + shortDate(this.todayIso);
 		var css = '@page{size:A4 portrait;margin:14mm 12mm}' +
 			'*{box-sizing:border-box}html,body{margin:0;padding:0}' +
